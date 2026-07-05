@@ -1,53 +1,56 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import yfinance as yf
 
+# 1. Page Configuration
+st.set_page_config(page_title="Live Financial Pipeline", layout="wide")
+st.title("📈 Live Financial Data Engine")
+st.markdown("Real-time data pipeline pulling directly from the Yahoo Finance API.")
 
-st.set_page_config(page_title="Executive Sales Dashboard", layout="wide")
-st.title("📊 Executive Sales Dashboard")
-st.markdown("Real-time data engine fed by our Azure Data Pipeline.")
+# 2. Sidebar Controls
+st.sidebar.header("Pipeline Controls")
+tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
+selected_ticker = st.sidebar.selectbox("Select Asset to Track:", tickers)
+time_period = st.sidebar.selectbox("Time Period:", ["1mo", "3mo", "6mo", "1y", "5y"])
 
-
-@st.cache_data
-def load_data():
-    df = pd.read_csv("sales_data.csv")
-    
-    df.columns = df.columns.str.strip() 
+# 3. Live API Data Fetcher (with 5-minute caching to prevent API bans)
+@st.cache_data(ttl=300) 
+def load_live_data(ticker, period):
+    stock = yf.Ticker(ticker)
+    df = stock.history(period=period)
+    df.reset_index(inplace=True)
+    # Format the dates cleanly
+    df['Date'] = pd.to_datetime(df['Date']).dt.date
     return df
 
-df = load_data()
+# Trigger the API
+df = load_live_data(selected_ticker, time_period)
 
+# 4. Top Metric Cards (Calculated on the fly)
+latest_price = df['Close'].iloc[-1]
+previous_price = df['Close'].iloc[-2]
+price_change = latest_price - previous_price
+pct_change = (price_change / previous_price) * 100
 
-st.sidebar.header("Filter Options")
-selected_region = st.sidebar.multiselect(
-    "Select Region:",
-    options=df["region"].unique(),       
-    default=df["region"].unique()        
-)
-
-
-df_filtered = df[df["region"].isin(selected_region)]  
-
-
-total_sales = df_filtered["amount"].sum()    
-total_orders = len(df_filtered)
-
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric(label="Total Revenue", value=f"${total_sales:,.2f}")
+    st.metric("Current Price (Close)", f"${latest_price:.2f}", f"{price_change:.2f} ({pct_change:.2f}%)")
 with col2:
-    st.metric(label="Total Orders Placed", value=f"{total_orders:,}")
+    st.metric("Trading Volume", f"{df['Volume'].iloc[-1]:,}")
+with col3:
+    st.metric("Active Asset", selected_ticker)
 
-
-st.subheader("Regional Performance Analysis")
-fig_bar = px.bar(
-    df_filtered, 
-    x="region",                          
-    y="amount",                              
-    title="Sales Breakdown by Region"        
+# 5. Interactive Time-Series Chart
+st.subheader("Live Market Performance")
+fig = px.line(
+    df, 
+    x='Date', 
+    y='Close', 
+    title=f"{selected_ticker} Stock Price Trend ({time_period})"
 )
-st.plotly_chart(fig_bar, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
-
-st.subheader("Raw Cleaned Dataset")
-st.dataframe(df_filtered)
+# Display the raw data streaming in
+st.subheader("Raw API Data Stream")
+st.dataframe(df.tail(10))
