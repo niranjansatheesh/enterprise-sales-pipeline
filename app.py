@@ -3,18 +3,18 @@ import pandas as pd
 import plotly.express as px
 import yfinance as yf
 
-# 1. Page Configuration
+
 st.set_page_config(page_title="Live Financial Pipeline", layout="wide")
 st.title("📈 Live Financial Data Engine")
 st.markdown("Real-time data pipeline pulling directly from the Yahoo Finance API.")
 
-# 2. Sidebar Controls
+
 st.sidebar.header("Pipeline Controls")
 tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
 selected_ticker = st.sidebar.selectbox("Select Asset to Track:", tickers)
 time_period = st.sidebar.selectbox("Time Period:", ["1mo", "3mo", "6mo", "1y", "5y"])
 
-# 3. Live API Data Fetcher (with 5-minute caching to prevent API bans)
+
 @st.cache_data(ttl=300) 
 def load_live_data(ticker, period):
     stock = yf.Ticker(ticker)
@@ -24,10 +24,10 @@ def load_live_data(ticker, period):
     df['Date'] = pd.to_datetime(df['Date']).dt.date
     return df
 
-# Trigger the API
+
 df = load_live_data(selected_ticker, time_period)
 
-# 4. Top Metric Cards (Calculated on the fly)
+
 latest_price = df['Close'].iloc[-1]
 previous_price = df['Close'].iloc[-2]
 price_change = latest_price - previous_price
@@ -41,7 +41,7 @@ with col2:
 with col3:
     st.metric("Active Asset", selected_ticker)
 
-# 5. Interactive Time-Series Chart
+
 st.subheader("Live Market Performance")
 fig = px.line(
     df, 
@@ -54,3 +54,42 @@ st.plotly_chart(fig, use_container_width=True)
 # Display the raw data streaming in
 st.subheader("Raw API Data Stream")
 st.dataframe(df.tail(10))
+
+
+
+
+st.markdown("---") 
+st.subheader("🤖 Historical Vault Data")
+st.markdown("This data is collected automatically every night by our GitHub Actions robot.")
+
+try:
+
+    history_df = pd.read_csv("daily_market_logs.csv")
+    
+   
+    if "Ticker" not in history_df.columns:
+        st.warning("⚠️ The database is currently updating its schema. Please run `python update_data.py` in your terminal to generate the new format.")
+    else:
+      
+        asset_history = history_df[history_df["Ticker"] == selected_ticker]
+        
+    
+        if not asset_history.empty:
+            fig_hist = px.bar(
+                asset_history, 
+                x="Date", 
+                y="Close_Price", 
+                title=f"{selected_ticker} Historical Closing Prices",
+                text="Close_Price"
+            )
+            st.plotly_chart(fig_hist, use_container_width=True)
+            
+            with st.expander("View Raw Robot Database"):
+                st.dataframe(asset_history)
+                
+        else:
+            st.info(f"The robot hasn't collected historical data for {selected_ticker} yet.")
+            
+except FileNotFoundError:
+    st.warning("Historical vault file not found. Waiting for the robot's first run!")
+
