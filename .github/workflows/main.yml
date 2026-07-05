@@ -1,0 +1,35 @@
+name: Midnight Data Robot
+
+on:
+  schedule:
+    - cron: '0 0 * * *' 
+  workflow_dispatch: 
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout Vault
+        uses: actions/checkout@v3
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Libraries
+        run: pip install yfinance pandas
+
+      - name: Run Robot Brain
+        run: python update_data.py
+
+      - name: Save Changes to Vault
+        run: |
+          git config --global user.name "DataRobot"
+          git config --global user.email "robot@pipeline.com"
+          git add daily_market_logs.csv
+          git commit -m "🤖 Robot: Daily market data logged" || echo "No new data"
+          git push
