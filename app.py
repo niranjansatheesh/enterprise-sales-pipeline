@@ -1,94 +1,55 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import yfinance as yf
+from sqlalchemy import create_engine
+import os
 
 
-st.set_page_config(page_title="Live Financial Pipeline", layout="wide")
-st.title("📈 Live Financial Data Engine")
-st.markdown("Real-time data pipeline pulling directly from the Yahoo Finance API.")
+LOCAL_DB_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan@56789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
 
 
-st.sidebar.header("Pipeline Controls")
-tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
-selected_ticker = st.sidebar.selectbox("Select Asset to Track:", tickers)
-time_period = st.sidebar.selectbox("Time Period:", ["1mo", "3mo", "6mo", "1y", "5y"])
+DATABASE_URL = os.getenv("DATABASE_URL", LOCAL_DB_URL)
+
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+try:
+    engine = create_engine(DATABASE_URL)
+except Exception as e:
+    st.error(f"Error creating database engine: {e}")
+    st.stop()
 
 
-@st.cache_data(ttl=300) 
-def load_live_data(ticker, period):
-    stock = yf.Ticker(ticker)
-    df = stock.history(period=period)
-    df.reset_index(inplace=True)
-    # Format the dates cleanly
-    df['Date'] = pd.to_datetime(df['Date']).dt.date
-    return df
-
-
-df = load_live_data(selected_ticker, time_period)
-
-
-latest_price = df['Close'].iloc[-1]
-previous_price = df['Close'].iloc[-2]
-price_change = latest_price - previous_price
-pct_change = (price_change / previous_price) * 100
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Current Price (Close)", f"${latest_price:.2f}", f"{price_change:.2f} ({pct_change:.2f}%)")
-with col2:
-    st.metric("Trading Volume", f"{df['Volume'].iloc[-1]:,}")
-with col3:
-    st.metric("Active Asset", selected_ticker)
-
-
-st.subheader("Live Market Performance")
-fig = px.line(
-    df, 
-    x='Date', 
-    y='Close', 
-    title=f"{selected_ticker} Stock Price Trend ({time_period})"
-)
-st.plotly_chart(fig, use_container_width=True)
-
-# Display the raw data streaming in
-st.subheader("Raw API Data Stream")
-st.dataframe(df.tail(10))
-
-
-
-
-st.markdown("---") 
-st.subheader("🤖 Historical Vault Data")
-st.markdown("This data is collected automatically every night by our GitHub Actions robot.")
+st.set_page_config(page_title="Market Data Dashboard", layout="wide")
+st.title("📈 Live Market Dashboard")
 
 
 try:
-    history_df = pd.read_csv("daily_market_logs.csv")
+  
+    query = "SELECT * FROM daily_market_logs ORDER BY date DESC"
+    df = pd.read_sql(query, engine)
     
-    
-    history_df["Ticker"] = history_df["Ticker"].str.strip()
-    
-    
-    asset_history = history_df[history_df["Ticker"] == selected_ticker]
-    
-    if not asset_history.empty:
+    if df.empty:
+        st.warning("The database is connected, but no data has been found yet. Run the robot engine to populate.")
+    else:
+       
+        df['date'] = pd.to_datetime(df['date'])
         
-            fig_hist = px.bar(
-                asset_history, 
-                x="Date", 
-                y="Close_Price", 
-                title=f"{selected_ticker} Historical Closing Prices",
-                text="Close_Price"
-            )
-            st.plotly_chart(fig_hist, use_container_width=True)
-            
-            with st.expander("View Raw Robot Database"):
-                st.dataframe(asset_history)
-                
-        else:
-            st.info(f"The robot hasn't collected historical data for {selected_ticker} yet.")
-            
-except FileNotFoundError:
-    st.warning("Historical vault file not found. Waiting for the robot's first run!")
+        st.write("### Latest Market Data")
+        st.dataframe(df, use_container_width=True)
 
+        
+        st.write("### Price Trend Analysis")
+        tickers = sorted(df['ticker'].unique().tolist())
+        ticker_choice = st.selectbox("Select a Ticker to view history:", tickers)
+        
+        
+        filtered_df = df[df['ticker'] == ticker_choice].sort_values('date')
+        
+        if not filtered_df.empty:
+            chart_data = filtered_df.set_index('date')[['close_price']]
+            st.line_chart(chart_data)
+        else:
+            st.info("No data available for the selected ticker.")
+
+except Exception as e:
+    st.error(f"Could not connect to database or fetch data. Error: {e}")
