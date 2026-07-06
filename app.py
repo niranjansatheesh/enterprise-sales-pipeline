@@ -2,43 +2,41 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 
-# --- DATABASE CONNECTION ---
-# 1. Go to Supabase and click the green "Connect" button at the top.
-# 2. Copy the URI link they give you.
-# 3. Paste it inside the quotes below. 
-# 4. Replace [YOUR-PASSWORD] with Niranjan%4056789
-DATABASE_URL = "postgresql://postgres:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
-
-# This line safely fixes the link for SQLAlchemy
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# --- FORCED DATABASE CONNECTION ---
+# We have added sslmode=require to satisfy Supabase security requirements.
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
 
 try:
-    engine = create_engine(DATABASE_URL)
+    # Adding connect_args with sslmode=require is necessary for Supabase
+    engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
 except Exception as e:
     st.error(f"Error creating database engine: {e}")
     st.stop()
+# ---------------------------------
 
-# --- DASHBOARD UI ---
 st.set_page_config(page_title="Market Data Dashboard", layout="wide")
 st.title("📈 Live Market Dashboard")
 
 try:
+    # Query all records
     query = "SELECT * FROM daily_market_logs ORDER BY date DESC"
     df = pd.read_sql(query, engine)
     
     if df.empty:
-        st.warning("The database is connected, but no data has been found yet.")
+        st.warning("The database is connected, but no data has been found yet. Run the robot engine to populate.")
     else:
+        # Ensure date column is datetime objects for better plotting
         df['date'] = pd.to_datetime(df['date'])
         
         st.write("### Latest Market Data")
         st.dataframe(df, use_container_width=True)
 
+        # Interactive selection
         st.write("### Price Trend Analysis")
         tickers = sorted(df['ticker'].unique().tolist())
         ticker_choice = st.selectbox("Select a Ticker to view history:", tickers)
         
+        # Filter and prepare chart
         filtered_df = df[df['ticker'] == ticker_choice].sort_values('date')
         
         if not filtered_df.empty:
