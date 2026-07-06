@@ -1,46 +1,34 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
+from sqlalchemy import create_engine
 
-# --- DIRECT PSYCOPG2 CONNECTION ---
-# We bypass SQLAlchemy to pinpoint the connection error
-DB_CONFIG = {
-    "dbname": "postgres",
-    "user": "postgres.gytdxosyynzrsbefrgfi",
-    "password": "Niranjan@56789",
-    "host": "db.gytdxosyynzrsbefrgfi.supabase.co",
-    "port": "5432",
-    "sslmode": "require"
+# Use your Direct Connection string (Port 5432)
+# Ensure the password and user are encoded correctly if they contain special characters
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
+
+# Force a stricter connection configuration
+connect_args = {
+    "sslmode": "require",
+    "options": "-c search_path=public"
 }
+
+try:
+    # Use pool_pre_ping to keep the connection alive
+    engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
+except Exception as e:
+    st.error(f"Engine Error: {e}")
+    st.stop()
 
 st.set_page_config(page_title="Market Data Dashboard", layout="wide")
 st.title("📈 Live Market Dashboard")
 
 try:
-    # Connect using psycopg2 directly
-    conn = psycopg2.connect(**DB_CONFIG)
-    
-    # Fetch data
-    query = "SELECT * FROM daily_market_logs ORDER BY date DESC"
-    df = pd.read_sql(query, conn)
-    conn.close()
+    # Use a direct query
+    df = pd.read_sql("SELECT * FROM daily_market_logs ORDER BY date DESC", engine)
     
     if df.empty:
-        st.warning("The database is connected, but no data has been found yet.")
+        st.warning("Database connected, but no data found.")
     else:
-        df['date'] = pd.to_datetime(df['date'])
-        st.write("### Latest Market Data")
-        st.dataframe(df, use_container_width=True)
-
-        st.write("### Price Trend Analysis")
-        tickers = sorted(df['ticker'].unique().tolist())
-        ticker_choice = st.selectbox("Select a Ticker:", tickers)
-        
-        filtered_df = df[df['ticker'] == ticker_choice].sort_values('date')
-        if not filtered_df.empty:
-            st.line_chart(filtered_df.set_index('date')[['close_price']])
-        else:
-            st.info("No data available.")
-            
+        st.dataframe(df)
 except Exception as e:
     st.error(f"Connection Error: {e}")
