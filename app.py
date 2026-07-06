@@ -62,19 +62,18 @@ st.markdown("---")
 st.subheader("🤖 Historical Vault Data")
 st.markdown("This data is collected automatically every night by our GitHub Actions robot.")
 
-try:
 
+try:
     history_df = pd.read_csv("daily_market_logs.csv")
     
-   
-    if "Ticker" not in history_df.columns:
-        st.warning("⚠️ The database is currently updating its schema. Please run `python update_data.py` in your terminal to generate the new format.")
-    else:
-      
-        asset_history = history_df[history_df["Ticker"] == selected_ticker]
-        
     
-        if not asset_history.empty:
+    history_df["Ticker"] = history_df["Ticker"].str.strip()
+    
+    
+    asset_history = history_df[history_df["Ticker"] == selected_ticker]
+    
+    if not asset_history.empty:
+        
             fig_hist = px.bar(
                 asset_history, 
                 x="Date", 
