@@ -3,8 +3,9 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 # --- FORCED DATABASE CONNECTION ---
-# We have added sslmode=require to satisfy Supabase security requirements.
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
+# We are switching to the DIRECT connection (port 5432) to avoid 
+# the 'tenant/user not found' error caused by the pooler.
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
 
 try:
     # Adding connect_args with sslmode=require is necessary for Supabase
