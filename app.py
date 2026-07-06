@@ -1,46 +1,41 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
-import os
+from sqlalchemy.engine import URL
 
-
-LOCAL_DB_URL = "postgresql://postgres:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
-
-DATABASE_URL = os.getenv("DATABASE_URL", LOCAL_DB_URL)
-
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+db_url = URL.create(
+    drivername="postgresql",
+    username="postgres.gytdxosyynzrsbefrgfi", 
+    password="Niranjan@56789",
+    host="aws-0-eu-central-2.pooler.supabase.com",
+    port=6543,
+    database="postgres"
+)
 
 try:
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(db_url)
 except Exception as e:
     st.error(f"Error creating database engine: {e}")
     st.stop()
 
-
 st.set_page_config(page_title="Market Data Dashboard", layout="wide")
 st.title("📈 Live Market Dashboard")
 
-
 try:
-  
     query = "SELECT * FROM daily_market_logs ORDER BY date DESC"
     df = pd.read_sql(query, engine)
     
     if df.empty:
-        st.warning("The database is connected, but no data has been found yet. Run the robot engine to populate.")
+        st.warning("The database is connected, but no data has been found yet.")
     else:
-       
         df['date'] = pd.to_datetime(df['date'])
         
         st.write("### Latest Market Data")
         st.dataframe(df, use_container_width=True)
 
-        
         st.write("### Price Trend Analysis")
         tickers = sorted(df['ticker'].unique().tolist())
         ticker_choice = st.selectbox("Select a Ticker to view history:", tickers)
-        
         
         filtered_df = df[df['ticker'] == ticker_choice].sort_values('date')
         
