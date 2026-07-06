@@ -1,23 +1,25 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
 
-db_url = URL.create(
-    drivername="postgresql",
-    username="postgres.gytdxosyynzrsbefrgfi", 
-    password="Niranjan@56789",
-    host="aws-0-eu-central-2.pooler.supabase.com",
-    port=6543,
-    database="postgres"
-)
+# --- DATABASE CONNECTION ---
+# 1. Go to Supabase and click the green "Connect" button at the top.
+# 2. Copy the URI link they give you.
+# 3. Paste it inside the quotes below. 
+# 4. Replace [YOUR-PASSWORD] with Niranjan%4056789
+DATABASE_URL = "postgresql://postgres:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
+
+# This line safely fixes the link for SQLAlchemy
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 try:
-    engine = create_engine(db_url)
+    engine = create_engine(DATABASE_URL)
 except Exception as e:
     st.error(f"Error creating database engine: {e}")
     st.stop()
 
+# --- DASHBOARD UI ---
 st.set_page_config(page_title="Market Data Dashboard", layout="wide")
 st.title("📈 Live Market Dashboard")
 
