@@ -1,13 +1,22 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
+from sqlalchemy.engine.url import URL
 
-# Use the Direct URI (Port 5432)
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
+# --- ROBUST CONNECTION ---
+# Using URL object construction to prevent parsing errors with special characters
+db_url = URL.create(
+    drivername="postgresql",
+    username="postgres.gytdxosyynzrsbefrgfi",
+    password="Niranjan@56789",
+    host="db.gytdxosyynzrsbefrgfi.supabase.co",
+    port=5432,
+    database="postgres"
+)
 
-# Force SSL mode to satisfy Supabase security
 try:
-    engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
+    # Explicitly force SSL for Supabase security
+    engine = create_engine(db_url, connect_args={"sslmode": "require"})
 except Exception as e:
     st.error(f"Error creating database engine: {e}")
     st.stop()
