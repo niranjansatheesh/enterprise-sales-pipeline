@@ -4,8 +4,7 @@ from sqlalchemy import create_engine
 import os
 
 
-LOCAL_DB_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
-
+LOCAL_DB_URL = "postgresql://postgres:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
 
 DATABASE_URL = os.getenv("DATABASE_URL", LOCAL_DB_URL)
 
