@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 
 # Use your Direct Connection string (Port 5432)
 # Ensure the password and user are encoded correctly if they contain special characters
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjandatabase123@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
 
 # Force a stricter connection configuration
 connect_args = {
