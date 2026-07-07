@@ -27,6 +27,13 @@ def send_discord_alert(ticker, change_pct):
     # Clean the URL to remove any accidental spaces or hidden quote characters from .env
     webhook_url = DISCORD_WEBHOOK_URL.strip().strip('"').strip("'")
     
+    # --- NEW SAFEGUARD: Catch placeholder text before it crashes ---
+    if "YOUR_ACTUAL_ID" in webhook_url or "YOUR_PASTED_URL" in webhook_url:
+        print(f"🛑 STOP! The robot detected placeholder text in your URL.")
+        print(f"🛑 Your current link is: {webhook_url}")
+        print("🛑 Please open your .env file, delete the contents, and paste your REAL Discord Webhook link.")
+        return
+    
     message = {
         "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n👉 **View Dashboard:** {DASHBOARD_URL}"
     }
@@ -71,7 +78,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            # Keeping your temporary threshold of 100.0 so we can test the alerts
+            # Reverted back to your actual -5.0 threshold for production
             if change_pct <= 100.0:
                 send_discord_alert(t, change_pct)
             
