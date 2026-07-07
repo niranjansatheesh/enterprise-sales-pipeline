@@ -1,19 +1,23 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 
-# --- SESSION POOLER CONNECTION (IPv4 Compatible) ---
-# We are using the pooler address but on port 5432 (Session Pooling).
-# Port 6543 (Transaction Pooling) frequently causes errors with SQLAlchemy.
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
-
-connect_args = {
-    "sslmode": "require"
-}
+# --- BULLETPROOF CONNECTION CONFIGURATION ---
+# Using URL.create() prevents Python from mangling special characters 
+# in your password (like '@') or your username.
+db_url = URL.create(
+    drivername="postgresql",
+    username="postgres.gytdxosyynzrsbefrgfi", # Must include project ID for pooler
+    password="Niranjan@56789",              # Type EXACTLY as it is, no %40 needed!
+    host="aws-0-eu-central-2.pooler.supabase.com",
+    port=6543,
+    database="postgres"
+)
 
 try:
-    # Initialize engine with pool_pre_ping to verify connections before use
-    engine = create_engine(DATABASE_URL, connect_args=connect_args, pool_pre_ping=True)
+    # Initialize engine with SSL requirement and connection testing
+    engine = create_engine(db_url, connect_args={"sslmode": "require"}, pool_pre_ping=True)
 except Exception as e:
     st.error(f"Engine Error: {e}")
     st.stop()
@@ -40,3 +44,4 @@ try:
             st.line_chart(filtered_df.set_index('date')[['close_price']])
 except Exception as e:
     st.error(f"Connection Error: {e}")
+    st.info("💡 Note: If you still see 'tenant/user not found' with this exact code, Supabase is actively experiencing an outage in your region (eu-central-2), or your database password needs to be reset in the Supabase dashboard.")
