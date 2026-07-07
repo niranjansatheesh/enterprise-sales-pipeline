@@ -5,14 +5,14 @@ from sqlalchemy import create_engine, text
 import os
 import sys
 import requests 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 print("🤖 Robot waking up... initializing.")
 
-
 NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
-
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
-
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
 def send_discord_alert(ticker, change_pct):
@@ -20,8 +20,9 @@ def send_discord_alert(ticker, change_pct):
         print("⚠️ Discord Webhook URL not set. Alerts will not be sent.")
         return
     
+    # Updated message with Markdown link for easy dashboard access
     message = {
-        "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\nCheck the dashboard now."
+        "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n[👉 Click here to view the Pro Market Dashboard]({DASHBOARD_URL})"
     }
     try:
         response = requests.post(DISCORD_WEBHOOK_URL, json=message)
@@ -56,7 +57,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            if change_pct <= 100.0:
+            if change_pct <= -5.0:
                 send_discord_alert(t, change_pct)
             
             record = {
