@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 
-# FIX FOR "Name or service not known":
-# Supabase direct connections (db.xxx.supabase.co) are IPv6 ONLY. 
-# If your internet doesn't support IPv6, it fails. 
-# We MUST use the IPv4 Pooler URL instead.
-# For the pooler, the username MUST be 'postgres.[project-id]'
+# --- OFFICIAL SUPABASE POOLER CONNECTION ---
+# Port 6543 is required for the connection pooler.
+# The username MUST be 'postgres.[project-id]' when using the pooler.
+# If you get "tenant/user not found" with this exact string, it means your password 
+# is incorrect or not properly synced in Supabase.
 
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
 
 # Stricter connection configuration for Supabase
 connect_args = {
