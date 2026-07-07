@@ -9,7 +9,7 @@ import requests
 print("🤖 Robot waking up... initializing.")
 
 
-NEON_URL = "PASTE_YOUR_REAL_NEON_LINK_HERE"
+NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
