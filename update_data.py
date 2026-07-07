@@ -24,10 +24,12 @@ def send_discord_alert(ticker, change_pct):
         print("⚠️ Discord Webhook URL not set. Alerts will not be sent.")
         return
     
-    # Updated message with Markdown link for easy dashboard access
+    # FIXED: Discord Webhooks reject hidden markdown links in standard messages.
+    # We now send the raw URL, which Discord will auto-link safely.
     message = {
-        "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n[👉 Click here to view the Pro Market Dashboard]({DASHBOARD_URL})"
+        "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n👉 **View Dashboard:** {DASHBOARD_URL}"
     }
+    
     try:
         response = requests.post(DISCORD_WEBHOOK_URL, json=message)
         if response.status_code == 204:
