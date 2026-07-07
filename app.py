@@ -1,23 +1,18 @@
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
+import os
 
-# --- BULLETPROOF CONNECTION CONFIGURATION ---
-# Using URL.create() prevents Python from mangling special characters 
-# in your password (like '@') or your username.
-db_url = URL.create(
-    drivername="postgresql",
-    username="postgres.gytdxosyynzrsbefrgfi", # Must include project ID for pooler
-    password="Niranjan@56789",              # Type EXACTLY as it is, no %40 needed!
-    host="aws-0-eu-central-2.pooler.supabase.com",
-    port=6543,
-    database="postgres"
-)
+# --- NEON CLOUD DATABASE CONNECTION ---
+# Paste your connection string from neon.tech inside the quotes below!
+NEON_URL = "postgresql://neondb_owner:npg_kQPDyGF61SWX@ep-old-butterfly-ahycnjeo.c-3.us-east-1.aws.neon.tech/neondb?sslmode=requirePASTE_YOUR_NEON_CONNECTION_STRING_HERE"
+
+# This setup uses your hardcoded URL when testing locally,
+# but automatically uses the GitHub Secret (os.getenv) when running in the cloud!
+DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
 try:
-    # Initialize engine with SSL requirement and connection testing
-    engine = create_engine(db_url, connect_args={"sslmode": "require"}, pool_pre_ping=True)
+    engine = create_engine(DATABASE_URL)
 except Exception as e:
     st.error(f"Engine Error: {e}")
     st.stop()
@@ -26,11 +21,10 @@ st.set_page_config(page_title="Market Data Dashboard", layout="wide")
 st.title("📈 Live Market Dashboard")
 
 try:
-    # Fetching data using the engine
     df = pd.read_sql("SELECT * FROM daily_market_logs ORDER BY date DESC", engine)
     
     if df.empty:
-        st.warning("Database connected, but no data found. Please run the Robot Engine.")
+        st.warning("Database connected successfully! But no data found. Please run the Robot Engine (update_data.py) to fetch data.")
     else:
         st.write("### Latest Market Data")
         st.dataframe(df, use_container_width=True)
@@ -43,5 +37,4 @@ try:
         if not filtered_df.empty:
             st.line_chart(filtered_df.set_index('date')[['close_price']])
 except Exception as e:
-    st.error(f"Connection Error: {e}")
-    st.info("💡 Note: If you still see 'tenant/user not found' with this exact code, Supabase is actively experiencing an outage in your region (eu-central-2), or your database password needs to be reset in the Supabase dashboard.")
+    st.error(f"Error reading database. If you just connected Neon, run update_data.py first to create the table! Error: {e}")
