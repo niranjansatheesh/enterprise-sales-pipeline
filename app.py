@@ -2,9 +2,13 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 
-# Using the standard 'postgres' user instead of the prefixed one to resolve tenant lookup errors
-# The project reference is handled by the hostname
-DATABASE_URL = "postgresql://postgres:Niranjan%4056789@db.gytdxosyynzrsbefrgfi.supabase.co:5432/postgres"
+# FIX FOR "Name or service not known":
+# Supabase direct connections (db.xxx.supabase.co) are IPv6 ONLY. 
+# If your internet doesn't support IPv6, it fails. 
+# We MUST use the IPv4 Pooler URL instead.
+# For the pooler, the username MUST be 'postgres.[project-id]'
+
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
 
 # Stricter connection configuration for Supabase
 connect_args = {
