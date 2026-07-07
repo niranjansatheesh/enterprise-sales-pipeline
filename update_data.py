@@ -1,24 +1,16 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
-import os
 from sqlalchemy import create_engine
+import os
 
 print("🤖 Robot waking up... fetching market data for all assets.")
 
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
-if not DATABASE_URL:
-    raise ValueError("🚨 DATABASE_URL secret is missing from GitHub Actions!")
-
-
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-
+DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 engine = create_engine(DATABASE_URL)
-
 
 tickers = ["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"]
 all_records = []
@@ -29,7 +21,6 @@ for t in tickers:
         df = stock.history(period="1d")
         
         if not df.empty:
-      
             record = {
                 "date": datetime.now().strftime("%Y-%m-%d"),
                 "ticker": t,
@@ -42,13 +33,13 @@ for t in tickers:
     except Exception as e:
         print(f"❌ Failed to fetch {t}. Error: {e}")
 
-
 if all_records:
     new_data = pd.DataFrame(all_records)
     
     try:
-  
         new_data.to_sql('daily_market_logs', engine, if_exists='append', index=False)
-        print("🎉 Success! Robot going back to sleep. All market data saved to the Supabase SQL Vault.")
+        print("🎉 Success! Robot going back to sleep. All market data saved to Neon Cloud.")
     except Exception as e:
-        print(f"⚠️ Notice: Data might already exist for today or a connection error occurred. Error details: {e}")
+        print(f"⚠️ Error saving data to database: {e}")
+else:
+    print("⚠️ No data was fetched today. Database was not updated.")
