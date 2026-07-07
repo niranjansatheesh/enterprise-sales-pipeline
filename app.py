@@ -2,15 +2,11 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
 
-# --- OFFICIAL SUPABASE POOLER CONNECTION ---
-# Port 6543 is required for the connection pooler.
-# The username MUST be 'postgres.[project-id]' when using the pooler.
-# If you get "tenant/user not found" with this exact string, it means your password 
-# is incorrect or not properly synced in Supabase.
+# --- SESSION POOLER CONNECTION (IPv4 Compatible) ---
+# We are using the pooler address but on port 5432 (Session Pooling).
+# Port 6543 (Transaction Pooling) frequently causes errors with SQLAlchemy.
+DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:5432/postgres"
 
-DATABASE_URL = "postgresql://postgres.gytdxosyynzrsbefrgfi:Niranjan%4056789@aws-0-eu-central-2.pooler.supabase.com:6543/postgres"
-
-# Stricter connection configuration for Supabase
 connect_args = {
     "sslmode": "require"
 }
