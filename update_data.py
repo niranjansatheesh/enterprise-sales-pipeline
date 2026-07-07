@@ -9,7 +9,7 @@ print("🤖 Robot waking up... initializing.")
 
 # --- NEON CLOUD DATABASE CONNECTION ---
 # Make sure your real Neon link is here!
-NEON_URL = "PASTE_YOUR_REAL_NEON_LINK_HERE"
+NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # Automatically uses local string or GitHub Secret
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
