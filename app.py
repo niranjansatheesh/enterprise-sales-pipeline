@@ -4,10 +4,8 @@ from sqlalchemy import create_engine, inspect
 import os
 import plotly.express as px
 
-# --- SETUP & STYLING ---
 st.set_page_config(page_title="Market Data Pro", page_icon="📈", layout="wide")
 
-# Custom minimal CSS for a sleek look
 st.markdown("""
 <style>
     .stMetric {
@@ -20,8 +18,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- NEON CLOUD DATABASE CONNECTION ---
-# ⚠️ Make sure to paste your real Neon link here again!
 NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
@@ -34,33 +30,27 @@ try:
     engine = init_connection()
     inspector = inspect(engine)
     
-    # Check if table exists
     if 'daily_market_logs' not in inspector.get_table_names():
         st.warning("🚀 Database connected! Waiting for the Robot Engine to fetch the first batch of data.")
         st.stop()
         
-    # Fetch Data
     df = pd.read_sql("SELECT * FROM daily_market_logs ORDER BY date DESC", engine)
     
     if df.empty:
         st.warning("Database connected successfully! But no data found.")
         st.stop()
 
-    # --- DASHBOARD UI ---
     st.title("📈 Pro Market Analytics")
     st.markdown("Live data synced directly from your Neon SQL Vault.")
     
-    # Sidebar Controls
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2942/2942269.png", width=100)
     st.sidebar.header("Dashboard Controls")
     tickers = sorted(df['ticker'].unique().tolist())
     selected_ticker = st.sidebar.selectbox("Select an Asset to Analyze:", tickers)
     
-    # Filter data for the selected ticker
     ticker_data = df[df['ticker'] == selected_ticker].sort_values('date')
     
     if not ticker_data.empty:
-        # --- TOP ROW: KPI METRICS ---
         st.markdown(f"### {selected_ticker} Overview")
         latest_data = ticker_data.iloc[-1]
         
@@ -72,11 +62,9 @@ try:
         with col3:
             st.metric(label="Last Updated", value=f"{latest_data['date']}")
             
-        # --- MIDDLE ROW: INTERACTIVE CHART ---
         st.markdown("---")
         st.markdown(f"### {selected_ticker} Price Trend")
         
-        # Create a beautiful Plotly Area Chart
         fig = px.area(
             ticker_data, 
             x='date', 
@@ -95,11 +83,9 @@ try:
         
         st.plotly_chart(fig, use_container_width=True)
         
-    # --- BOTTOM ROW: RAW DATA ---
     st.markdown("---")
     st.markdown("### 🗄️ Raw SQL Vault Data")
     
-    # Highlight the highest prices in the dataframe
     st.dataframe(
         df.style.highlight_max(axis=0, subset=['close_price'], color='#005500'),
         use_container_width=True,
