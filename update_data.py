@@ -24,18 +24,26 @@ def send_discord_alert(ticker, change_pct):
         print("⚠️ Discord Webhook URL not set. Alerts will not be sent.")
         return
     
-    # FIXED: Discord Webhooks reject hidden markdown links in standard messages.
-    # We now send the raw URL, which Discord will auto-link safely.
+    # Clean the URL to remove any accidental spaces or hidden quote characters from .env
+    webhook_url = DISCORD_WEBHOOK_URL.strip().strip('"').strip("'")
+    
     message = {
         "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n👉 **View Dashboard:** {DASHBOARD_URL}"
     }
     
     try:
-        response = requests.post(DISCORD_WEBHOOK_URL, json=message)
-        if response.status_code == 204:
+        # Added explicit headers
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(webhook_url, json=message, headers=headers)
+        
+        # 200 and 204 are both success codes for Discord
+        if response.status_code in [200, 204]:
             print(f"📢 Alert successfully sent to Discord for {ticker}")
         else:
             print(f"❌ Discord API returned status {response.status_code}")
+            # THIS IS THE MAGIC LINE: It will print exactly why Discord is mad
+            print(f"🔍 Error Details: {response.text}") 
+            
     except Exception as e:
         print(f"❌ Failed to send Discord alert: {e}")
 
@@ -63,6 +71,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
+            # Keeping your temporary threshold of 100.0 so we can test the alerts
             if change_pct <= 100.0:
                 send_discord_alert(t, change_pct)
             
