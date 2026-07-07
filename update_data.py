@@ -7,6 +7,7 @@ import sys
 import requests 
 from dotenv import load_dotenv
 
+# Tell Python to load the variables from the .env file automatically
 load_dotenv()
 
 print("🤖 Robot waking up... initializing.")
@@ -14,6 +15,9 @@ print("🤖 Robot waking up... initializing.")
 NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
+
+# Placeholder link. We will update this when your dashboard is live!
+DASHBOARD_URL = "https://your-future-dashboard.com" 
 
 def send_discord_alert(ticker, change_pct):
     if not DISCORD_WEBHOOK_URL:
@@ -57,7 +61,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            if change_pct <= 100.0:
+            if change_pct <= -5.0:
                 send_discord_alert(t, change_pct)
             
             record = {
