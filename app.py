@@ -6,7 +6,7 @@ import os
 # --- NEON CLOUD DATABASE CONNECTION ---
 # Make sure to completely REPLACE the placeholder text.
 # It should end cleanly with "?sslmode=require" and NOTHING else.
-NEON_URL = "postgresql://neondb_owner:YOUR_ACTUAL_PASSWORD@ep-your-neon-host.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 # This setup uses your hardcoded URL when testing locally,
 # but automatically uses the GitHub Secret (os.getenv) when running in the cloud!
