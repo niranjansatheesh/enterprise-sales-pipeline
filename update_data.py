@@ -57,7 +57,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            if change_pct <= -5.0:
+            if change_pct <= 100.0:
                 send_discord_alert(t, change_pct)
             
             record = {
