@@ -3,6 +3,10 @@ import pandas as pd
 from sqlalchemy import create_engine, inspect
 import os
 import plotly.express as px
+from dotenv import load_dotenv
+
+# Tell Python to load the variables from the .env file automatically
+load_dotenv()
 
 # --- SETUP & STYLING ---
 st.set_page_config(page_title="Market Data Pro", page_icon="📈", layout="wide")
@@ -21,8 +25,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- NEON CLOUD DATABASE CONNECTION ---
-# ⚠️ Make sure to paste your real Neon link here again!
-NEON_URL = "PASTE_YOUR_REAL_NEON_LINK_HERE"
+NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
