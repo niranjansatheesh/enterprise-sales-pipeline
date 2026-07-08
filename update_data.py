@@ -79,7 +79,7 @@ for t in tickers:
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
             # Reverted back to your actual -5.0 threshold for production
-            if change_pct <= 100.0:
+            if change_pct <= -5.0:
                 send_discord_alert(t, change_pct)
             
             record = {
