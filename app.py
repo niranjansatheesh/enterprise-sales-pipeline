@@ -69,12 +69,12 @@ else:
         current_price = ticker_data['close_price'].iloc[-1]
         prev_price = ticker_data['close_price'].iloc[-2]
         delta = current_price - prev_price
-        st.metric(label=f"{selected_ticker} Closing Price", value=f"${current_price:.2f}", delta=f"{delta:.2f}")
+        st.metric(label=f"{selected_ticker} Price", value=f"${current_price:.2f}", delta=f"{delta:.2f}")
     else:
         st.subheader(f"{selected_ticker} Current Price")
         st.write(f"${ticker_data['close_price'].iloc[-1]:.2f}")
     
-    # Line graph
+    # Line graph (using width='stretch' instead of use_container_width=True)
     fig = px.line(
         ticker_data, 
         x='date', 
@@ -91,7 +91,7 @@ else:
         paper_bgcolor="rgba(0,0,0,0)"
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
     
     st.markdown("---")
-    st.dataframe(ticker_data.tail(10), use_container_width=True)
+    st.dataframe(ticker_data.tail(10), width='stretch')
