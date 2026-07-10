@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, text
 import os
-import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from dotenv import load_dotenv
 
 # Tell Python to load the variables from the .env file automatically
@@ -14,6 +15,7 @@ st.set_page_config(page_title="Market Data Pro", page_icon="📈", layout="wide"
 st.markdown("""
 <style>
 .stApp { background-color: #0E1117; color: white; }
+div[data-testid="stMetricValue"] { color: #00FFAA; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -36,12 +38,16 @@ def load_data():
         with engine.connect() as conn:
             df = pd.read_sql("SELECT * FROM daily_market_logs", conn)
             
-            # --- PHASE 3: TECHNICAL INDICATORS MATH ---
-            # Sort by date to ensure the rolling math calculates in the correct chronological order
+            # Sort by date to ensure chronological math
             df = df.sort_values(by=['ticker', 'date'])
             
+            # Since we only have close_price, we will simulate open/high/low for the candlestick 
+            # (In a real app, your robot would fetch all 4 of these!)
+            df['open'] = df['close_price'] * 0.99
+            df['high'] = df['close_price'] * 1.02
+            df['low'] = df['close_price'] * 0.98
+            
             # Calculate a 5-Day Simple Moving Average (SMA)
-            # (We use 5 days instead of 50 right now so you can see it working sooner!)
             df['5_Day_SMA'] = df.groupby('ticker')['close_price'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
             
             return df
@@ -69,28 +75,56 @@ else:
     col3.metric("5-Day Average Trend", f"${latest_data['5_Day_SMA']:.2f}")
     
     st.markdown("---")
-    st.markdown(f"### {selected_ticker} Price vs. Moving Average")
     
-    # Advanced Plotly Chart with Multiple Lines
-    fig = px.line(
-        ticker_data, 
-        x='date', 
-        # Plotting both the daily price AND our new moving average
-        y=['close_price', '5_Day_SMA'], 
-        markers=True,
-        color_discrete_map={'close_price': '#00FFAA', '5_Day_SMA': '#FF5500'}
-    )
-    
+    # --- PROFESSIONAL SUBPLOT CHART ---
+    # Create a layout with 2 rows: The large price chart on top, smaller volume chart below
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
+                        vertical_spacing=0.03, row_heights=[0.7, 0.3])
+
+    # 1. Candlestick Chart (Top Row)
+    fig.add_trace(go.Candlestick(
+        x=ticker_data['date'],
+        open=ticker_data['open'],
+        high=ticker_data['high'],
+        low=ticker_data['low'],
+        close=ticker_data['close_price'],
+        name='Price'
+    ), row=1, col=1)
+
+    # 2. Moving Average Overlay (Top Row)
+    fig.add_trace(go.Scatter(
+        x=ticker_data['date'], 
+        y=ticker_data['5_Day_SMA'], 
+        line=dict(color='#FF5500', width=2),
+        name='5-Day SMA'
+    ), row=1, col=1)
+
+    # 3. Volume Bar Chart (Bottom Row)
+    # Color volume green if price went up, red if it went down
+    colors = ['#FF4A4A' if ticker_data['open'].iloc[i] > ticker_data['close_price'].iloc[i] else '#00FFAA' for i in range(len(ticker_data))]
+    fig.add_trace(go.Bar(
+        x=ticker_data['date'], 
+        y=ticker_data['volume'],
+        marker_color=colors,
+        name='Volume'
+    ), row=2, col=1)
+
+    # Make it look dark and professional
     fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)", 
-        xaxis_title="Date",
+        title=f"<b>{selected_ticker} Advanced Chart</b>",
         yaxis_title="Price ($)",
-        legend_title="Indicators",
-        hovermode="x unified" # Makes hovering over the chart show both prices at once!
+        yaxis2_title="Volume",
+        xaxis2_title="Date",
+        template="plotly_dark",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        xaxis_rangeslider_visible=False, # Hide the clunky slider at the bottom
+        height=600,
+        hovermode="x unified"
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
     st.subheader("Raw Data Logs")
-    st.dataframe(ticker_data.tail(10))
+    st.dataframe(ticker_data.tail(10), use_container_width=True)
