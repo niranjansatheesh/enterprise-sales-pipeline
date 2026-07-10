@@ -17,10 +17,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📈 Pro Market Analytics")
-
 # --- DATABASE CONNECTION ---
-# Using the standard Neon connection string
 NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
@@ -53,18 +50,31 @@ def load_data():
 df = load_data()
 
 # --- UI DASHBOARD ---
+st.title("📈 Pro Market Analytics")
+
 if df.empty:
     st.warning("No data found yet. Wait for the robot to run!")
 else:
-    # Sidebar selection
+    # 1. Sidebar Section
+    st.sidebar.header("Navigation")
     tickers = df['ticker'].unique()
-    selected_ticker = st.selectbox("Select Asset to Analyze", tickers)
+    selected_ticker = st.sidebar.selectbox("Select Asset to Analyze", tickers)
     
+    # Filter data for the selected asset
     ticker_data = df[df['ticker'] == selected_ticker].copy()
     
-    # Simple line graph
-    st.subheader(f"{selected_ticker} Price Progress")
+    # 2. Main Dashboard Area
+    # Calculate Price Change
+    if len(ticker_data) >= 2:
+        current_price = ticker_data['close_price'].iloc[-1]
+        prev_price = ticker_data['close_price'].iloc[-2]
+        delta = current_price - prev_price
+        st.metric(label=f"{selected_ticker} Closing Price", value=f"${current_price:.2f}", delta=f"{delta:.2f}")
+    else:
+        st.subheader(f"{selected_ticker} Current Price")
+        st.write(f"${ticker_data['close_price'].iloc[-1]:.2f}")
     
+    # Line graph
     fig = px.line(
         ticker_data, 
         x='date', 
@@ -73,7 +83,6 @@ else:
         template="plotly_dark"
     )
     
-    # Customizing the line to look clean
     fig.update_traces(line_color='#00FFAA', line_width=3)
     fig.update_layout(
         xaxis_title="Date",
