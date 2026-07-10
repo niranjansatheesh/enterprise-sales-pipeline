@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 import os
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import plotly.express as px
 from dotenv import load_dotenv
 
-# Tell Python to load the variables from the .env file automatically
+# Load database variables
 load_dotenv()
 
 # --- SETUP & STYLING ---
@@ -15,13 +14,13 @@ st.set_page_config(page_title="Market Data Pro", page_icon="📈", layout="wide"
 st.markdown("""
 <style>
 .stApp { background-color: #0E1117; color: white; }
-div[data-testid="stMetricValue"] { color: #00FFAA; }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("📈 Pro Market Analytics")
 
-# --- NEON CLOUD DATABASE CONNECTION ---
+# --- DATABASE CONNECTION ---
+# Using the standard Neon connection string
 NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
@@ -31,105 +30,59 @@ def init_connection():
 
 engine = init_connection()
 
-# --- DATA FETCHING & ADVANCED ANALYTICS ---
+# --- DATA FETCHING ---
 @st.cache_data(ttl=600)
 def load_data():
     try:
         with engine.connect() as conn:
+            # Load the data
             df = pd.read_sql("SELECT * FROM daily_market_logs", conn)
             
-            # --- THE FIX: Clean up the messy test data ---
-            # If there are multiple entries for the same stock on the same day (like our July 7th test),
-            # this will delete the duplicates and only keep the final price of the day.
+            # Clean: Only keep the last run of the day to ensure the graph isn't messy
             df = df.drop_duplicates(subset=['ticker', 'date'], keep='last')
             
-            # Sort by date to ensure chronological math
+            # Convert date column to datetime objects
+            df['date'] = pd.to_datetime(df['date'])
             df = df.sort_values(by=['ticker', 'date'])
-            
-            # Since we only have close_price, we will simulate open/high/low for the candlestick 
-            # (In a real app, your robot would fetch all 4 of these!)
-            df['open'] = df['close_price'] * 0.99
-            df['high'] = df['close_price'] * 1.02
-            df['low'] = df['close_price'] * 0.98
-            
-            # Calculate a 5-Day Simple Moving Average (SMA)
-            df['5_Day_SMA'] = df.groupby('ticker')['close_price'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
             
             return df
     except Exception as e:
-        st.error(f"Database connection failed: {e}")
+        st.error(f"Database error: {e}")
         return pd.DataFrame()
 
 df = load_data()
 
 # --- UI DASHBOARD ---
 if df.empty:
-    st.warning("No data found in the database yet. Waiting for the robot to run!")
+    st.warning("No data found yet. Wait for the robot to run!")
 else:
-    # Top Row: Selection
+    # Sidebar selection
     tickers = df['ticker'].unique()
     selected_ticker = st.selectbox("Select Asset to Analyze", tickers)
     
     ticker_data = df[df['ticker'] == selected_ticker].copy()
-    latest_data = ticker_data.iloc[-1]
     
-    # KPI Metrics
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Latest Close Price", f"${latest_data['close_price']:.2f}")
-    col2.metric("Trading Volume", f"{latest_data['volume']:,}")
-    col3.metric("5-Day Average Trend", f"${latest_data['5_Day_SMA']:.2f}")
+    # Simple line graph
+    st.subheader(f"{selected_ticker} Price Progress")
     
-    st.markdown("---")
+    fig = px.line(
+        ticker_data, 
+        x='date', 
+        y='close_price',
+        markers=True,
+        template="plotly_dark"
+    )
     
-    # --- PROFESSIONAL SUBPLOT CHART ---
-    # Create a layout with 2 rows: The large price chart on top, smaller volume chart below
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        vertical_spacing=0.03, row_heights=[0.7, 0.3])
-
-    # 1. Candlestick Chart (Top Row)
-    fig.add_trace(go.Candlestick(
-        x=ticker_data['date'],
-        open=ticker_data['open'],
-        high=ticker_data['high'],
-        low=ticker_data['low'],
-        close=ticker_data['close_price'],
-        name='Price'
-    ), row=1, col=1)
-
-    # 2. Moving Average Overlay (Top Row)
-    fig.add_trace(go.Scatter(
-        x=ticker_data['date'], 
-        y=ticker_data['5_Day_SMA'], 
-        line=dict(color='#FF5500', width=2),
-        name='5-Day SMA'
-    ), row=1, col=1)
-
-    # 3. Volume Bar Chart (Bottom Row)
-    # Color volume green if price went up, red if it went down
-    colors = ['#FF4A4A' if ticker_data['open'].iloc[i] > ticker_data['close_price'].iloc[i] else '#00FFAA' for i in range(len(ticker_data))]
-    fig.add_trace(go.Bar(
-        x=ticker_data['date'], 
-        y=ticker_data['volume'],
-        marker_color=colors,
-        name='Volume'
-    ), row=2, col=1)
-
-    # Make it look dark and professional
+    # Customizing the line to look clean
+    fig.update_traces(line_color='#00FFAA', line_width=3)
     fig.update_layout(
-        title=f"<b>{selected_ticker} Advanced Chart</b>",
-        yaxis_title="Price ($)",
-        yaxis2_title="Volume",
-        xaxis2_title="Date",
-        template="plotly_dark",
+        xaxis_title="Date",
+        yaxis_title="Close Price ($)",
         plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        xaxis_rangeslider_visible=False, # Hide the clunky slider at the bottom
-        height=600,
-        hovermode="x unified"
+        paper_bgcolor="rgba(0,0,0,0)"
     )
     
     st.plotly_chart(fig, use_container_width=True)
     
     st.markdown("---")
-    st.subheader("Raw Data Logs")
     st.dataframe(ticker_data.tail(10), use_container_width=True)
