@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- SETUP & STYLING ---
-st.set_page_config(page_title="Market Data Pro", page_icon="📈", layout="wide")
+st.set_page_config(page_title="MarketPulse", page_icon="📈", layout="wide")
 
 st.markdown("""
 <style>
@@ -28,26 +28,62 @@ st.markdown("""
 /* ---------- Top masthead ---------- */
 .masthead {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    padding: 0.4rem 0 1.1rem 0;
+    padding: 0.6rem 0 1.3rem 0;
     border-bottom: 1px solid rgba(212, 175, 55, 0.25);
-    margin-bottom: 1.6rem;
+    margin-bottom: 1.8rem;
 }
+.brand-block {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+.brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    background: linear-gradient(155deg, #171B21 0%, #0D1116 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.brand-mark svg { width: 22px; height: 22px; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .masthead-title {
     font-family: 'Space Grotesk', sans-serif;
     font-weight: 700;
-    font-size: 1.9rem;
-    letter-spacing: -0.02em;
+    font-size: 1.65rem;
+    letter-spacing: -0.01em;
     color: #F4F1EA;
 }
-.masthead-title span { color: #D4AF37; }
-.masthead-sub {
+.masthead-title .accent { color: #D4AF37; }
+.masthead-tagline {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: #6B7684;
+    margin-top: 0.15rem;
+}
+.masthead-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8A93A0;
+}
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #3ED598;
+    box-shadow: 0 0 6px rgba(62, 213, 152, 0.7);
 }
 
 /* ---------- Sidebar ---------- */
@@ -162,8 +198,22 @@ df = load_data()
 # --- MASTHEAD ---
 st.markdown("""
 <div class="masthead">
-    <div class="masthead-title">MARKET<span>DATA</span>PRO</div>
-    <div class="masthead-sub">Live Equity Terminal · Refreshed every 10 min</div>
+    <div class="brand-block">
+        <div class="brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 17L9 11L13 15L21 6" stroke="#D4AF37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M15 6H21V12" stroke="#D4AF37" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <div class="brand-text">
+            <div class="masthead-title">MARKET<span class="accent">PULSE</span></div>
+            <div class="masthead-tagline">Real-time equity analytics terminal</div>
+        </div>
+    </div>
+    <div class="masthead-status">
+        <span class="status-dot"></span>
+        Live · refreshed every 10 min
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
