@@ -38,6 +38,11 @@ def load_data():
         with engine.connect() as conn:
             df = pd.read_sql("SELECT * FROM daily_market_logs", conn)
             
+            # --- THE FIX: Clean up the messy test data ---
+            # If there are multiple entries for the same stock on the same day (like our July 7th test),
+            # this will delete the duplicates and only keep the final price of the day.
+            df = df.drop_duplicates(subset=['ticker', 'date'], keep='last')
+            
             # Sort by date to ensure chronological math
             df = df.sort_values(by=['ticker', 'date'])
             
