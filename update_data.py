@@ -4,65 +4,76 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, text
 import os
 import sys
-import requests 
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
 print("🤖 Robot waking up... initializing.")
 
-NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require"
+# --- CONFIGURATION (no secrets in code!) ---
+DATABASE_URL = os.getenv("DATABASE_URL")
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
-DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
-# Update this URL to your actual deployment link when your dashboard is live!
-DASHBOARD_URL = "https://your-future-dashboard.com" 
+# Set this to your real deployed dashboard link once deployed.
+# A dashboard URL is not a secret, so hardcoding the real one is fine too.
+DASHBOARD_URL = os.getenv("DASHBOARD_URL", "https://your-app-name.streamlit.app")
+
+# Alert threshold: alert when a stock moves this much (%) in EITHER direction.
+ALERT_THRESHOLD_PCT = float(os.getenv("ALERT_THRESHOLD_PCT", "3.0"))
+
+if not DATABASE_URL:
+    print("❌ DATABASE_URL is not set.")
+    print("   → Locally: add it to your .env file.")
+    print("   → GitHub Actions: add it under Settings → Secrets and variables → Actions.")
+    sys.exit(1)
+
 
 def send_discord_alert(ticker, change_pct):
     if not DISCORD_WEBHOOK_URL:
         print("⚠️ Discord Webhook URL not set. Alerts will not be sent.")
         return
-    
+
     webhook_url = DISCORD_WEBHOOK_URL.strip().strip('"').strip("'")
-    
+
     if "YOUR_ACTUAL_ID" in webhook_url or "YOUR_PASTED_URL" in webhook_url:
-        print(f"🛑 STOP! The robot detected placeholder text in your URL.")
+        print("🛑 STOP! The robot detected placeholder text in your URL.")
         print(f"🛑 Your current link is: {webhook_url}")
-        print("🛑 Please open your .env file, delete the contents, and paste your REAL Discord Webhook link.")
+        print("🛑 Please open your .env file and paste your REAL Discord Webhook link.")
         return
-    
-    # Clean, masked redirect embed payload
+
+    direction = "📈" if change_pct >= 0 else "📉"
+
     payload = {
         "embeds": [
             {
-                "title": f"📈 View {ticker} Live Dashboard",
-                "url": DASHBOARD_URL,  # Direct click redirect on the Title
+                "title": f"{direction} {ticker} moved {change_pct:+.2f}% — View Live Dashboard",
+                "url": DASHBOARD_URL,  # Clicking the title opens the dashboard
                 "description": (
                     f"Significant daily movement detected for **{ticker}**.\n\n"
-                    f"📉 **Change:** {change_pct:.2f}%\n\n"
-                    f"👉 **[Open Dashboard]({DASHBOARD_URL})**"  # Hidden markdown link
+                    f"{direction} **Change:** {change_pct:+.2f}%\n\n"
+                    f"👉 **[Open Dashboard]({DASHBOARD_URL})**"
                 ),
-                "color": 15158332,  # Crimson red for alert visibility
-                "footer": {
-                    "text": "Midnight Data Robot"
-                },
+                "color": 15158332 if change_pct < 0 else 3066993,  # red drop, green gain
+                "footer": {"text": "Midnight Data Robot"},
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
         ]
     }
-    
+
     try:
         headers = {"Content-Type": "application/json"}
         response = requests.post(webhook_url, json=payload, headers=headers)
-        
+
         if response.status_code in [200, 204]:
             print(f"📢 Embed alert successfully sent to Discord for {ticker}")
         else:
             print(f"❌ Discord API returned status {response.status_code}")
-            print(f"🔍 Error Details: {response.text}") 
-            
+            print(f"🔍 Error Details: {response.text}")
+
     except Exception as e:
         print(f"❌ Failed to send Discord alert: {e}")
+
 
 try:
     engine = create_engine(DATABASE_URL)
@@ -82,16 +93,16 @@ for t in tickers:
     try:
         stock = yf.Ticker(t)
         df = stock.history(period="2d")
-        
+
         if len(df) >= 2:
             prev_close = df['Close'].iloc[-2]
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
-            
-            # Triggers if the stock falls or meets your test threshold
-            if change_pct <= 100.0:
+
+            # Alert only on significant moves (up OR down)
+            if abs(change_pct) >= ALERT_THRESHOLD_PCT:
                 send_discord_alert(t, change_pct)
-            
+
             record = {
                 "date": today_str,
                 "ticker": t,
@@ -100,7 +111,7 @@ for t in tickers:
             }
             all_records.append(record)
             print(f"✅ Fetched {t} (Price: {record['close_price']}, Change: {change_pct:.2f}%)")
-            
+
     except Exception as e:
         print(f"❌ Failed to fetch {t}: {e}")
 
