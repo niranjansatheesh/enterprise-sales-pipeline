@@ -4,10 +4,14 @@ from datetime import datetime, timezone
 from sqlalchemy import create_engine, text
 import os
 import sys
+from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+# --- Load .env from the SAME folder as this script, no matter where you run from ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+ENV_PATH = SCRIPT_DIR / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 print("🤖 Robot waking up... initializing.")
 
@@ -15,17 +19,27 @@ print("🤖 Robot waking up... initializing.")
 DATABASE_URL = os.getenv("DATABASE_URL")
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 
-# Set this to your real deployed dashboard link once deployed.
-# A dashboard URL is not a secret, so hardcoding the real one is fine too.
+# Replace with your real deployed dashboard link once deployed.
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "https://your-app-name.streamlit.app")
 
 # Alert threshold: alert when a stock moves this much (%) in EITHER direction.
 ALERT_THRESHOLD_PCT = float(os.getenv("ALERT_THRESHOLD_PCT", "3.0"))
 
+# --- Helpful diagnostics if config is missing ---
 if not DATABASE_URL:
     print("❌ DATABASE_URL is not set.")
-    print("   → Locally: add it to your .env file.")
-    print("   → GitHub Actions: add it under Settings → Secrets and variables → Actions.")
+    if ENV_PATH.exists():
+        print(f"   ℹ️ A .env file WAS found at: {ENV_PATH}")
+        print("   → But it doesn't contain a valid DATABASE_URL line.")
+        print("   → Check: no quotes, no spaces around '=', spelled exactly DATABASE_URL")
+    else:
+        print(f"   ℹ️ No .env file found at: {ENV_PATH}")
+        print("   → Create a file named exactly '.env' (not .env.txt!) in that folder.")
+        # Windows trap detection:
+        txt_version = SCRIPT_DIR / ".env.txt"
+        if txt_version.exists():
+            print("   🛑 FOUND '.env.txt' — Windows added the .txt! Rename it to just '.env'")
+    print("   → On GitHub Actions: add DATABASE_URL under Settings → Secrets and variables → Actions.")
     sys.exit(1)
 
 
@@ -54,7 +68,7 @@ def send_discord_alert(ticker, change_pct):
                     f"{direction} **Change:** {change_pct:+.2f}%\n\n"
                     f"👉 **[Open Dashboard]({DASHBOARD_URL})**"
                 ),
-                "color": 15158332 if change_pct < 0 else 3066993,  # red drop, green gain
+                "color": 15158332 if change_pct < 0 else 3066993,
                 "footer": {"text": "Midnight Data Robot"},
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
