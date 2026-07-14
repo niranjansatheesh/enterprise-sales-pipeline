@@ -1,6 +1,6 @@
 import yfinance as yf
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from sqlalchemy import create_engine, text
 import os
 import sys
@@ -15,7 +15,7 @@ NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
-# Update this URL when your dashboard is live
+# Update this URL to your actual deployment link when your dashboard is live!
 DASHBOARD_URL = "https://your-future-dashboard.com" 
 
 def send_discord_alert(ticker, change_pct):
@@ -31,22 +31,22 @@ def send_discord_alert(ticker, change_pct):
         print("🛑 Please open your .env file, delete the contents, and paste your REAL Discord Webhook link.")
         return
     
-    # Option 2: Rich Embed payload where clicking the Title or the Link redirects to the dashboard
+    # Clean, masked redirect embed payload
     payload = {
         "embeds": [
             {
-                "title": f"🚨 MARKET ALERT: {ticker} Dropped!",
-                "url": DASHBOARD_URL,  # Makes the title card clickable to open the dashboard
+                "title": f"📈 View {ticker} Live Dashboard",
+                "url": DASHBOARD_URL,  # Direct click redirect on the Title
                 "description": (
                     f"Significant daily movement detected for **{ticker}**.\n\n"
                     f"📉 **Change:** {change_pct:.2f}%\n\n"
-                    f"🔗 **[Click here to view live charts on the Dashboard]({DASHBOARD_URL})**"
+                    f"👉 **[Open Dashboard]({DASHBOARD_URL})**"  # Hidden markdown link
                 ),
-                "color": 15158332,  # A sharp crimson red color for alerts
+                "color": 15158332,  # Crimson red for alert visibility
                 "footer": {
                     "text": "Midnight Data Robot"
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
         ]
     }
@@ -88,7 +88,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            # Triggers if the stock falls 3% or more
+            # Triggers if the stock falls or meets your test threshold
             if change_pct <= 100.0:
                 send_discord_alert(t, change_pct)
             
