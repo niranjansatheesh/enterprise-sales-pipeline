@@ -7,7 +7,6 @@ import sys
 import requests 
 from dotenv import load_dotenv
 
-# Tell Python to load the variables from the .env file automatically
 load_dotenv()
 
 print("🤖 Robot waking up... initializing.")
@@ -16,7 +15,6 @@ NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
-# Placeholder link. We will update this when your dashboard is live!
 DASHBOARD_URL = "https://your-future-dashboard.com" 
 
 def send_discord_alert(ticker, change_pct):
@@ -24,10 +22,8 @@ def send_discord_alert(ticker, change_pct):
         print("⚠️ Discord Webhook URL not set. Alerts will not be sent.")
         return
     
-    # Clean the URL to remove any accidental spaces or hidden quote characters from .env
     webhook_url = DISCORD_WEBHOOK_URL.strip().strip('"').strip("'")
     
-    # --- NEW SAFEGUARD: Catch placeholder text before it crashes ---
     if "YOUR_ACTUAL_ID" in webhook_url or "YOUR_PASTED_URL" in webhook_url:
         print(f"🛑 STOP! The robot detected placeholder text in your URL.")
         print(f"🛑 Your current link is: {webhook_url}")
@@ -39,16 +35,13 @@ def send_discord_alert(ticker, change_pct):
     }
     
     try:
-        # Added explicit headers
         headers = {"Content-Type": "application/json"}
         response = requests.post(webhook_url, json=message, headers=headers)
         
-        # 200 and 204 are both success codes for Discord
         if response.status_code in [200, 204]:
             print(f"📢 Alert successfully sent to Discord for {ticker}")
         else:
             print(f"❌ Discord API returned status {response.status_code}")
-            # THIS IS THE MAGIC LINE: It will print exactly why Discord is mad
             print(f"🔍 Error Details: {response.text}") 
             
     except Exception as e:
@@ -78,8 +71,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
-            # Reverted back to your actual -5.0 threshold for production
-            if change_pct <= -5.0:
+            if change_pct <= 100.0:
                 send_discord_alert(t, change_pct)
             
             record = {
