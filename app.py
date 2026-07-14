@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- SETUP & STYLING ---
-st.set_page_config(page_title="MarketPulse", page_icon="📈", layout="wide")
+st.set_page_config(page_title="StockStream", page_icon="📈", layout="wide")
 
 st.markdown("""
 <style>
