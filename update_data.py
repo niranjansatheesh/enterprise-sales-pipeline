@@ -15,6 +15,7 @@ NEON_URL = "postgresql://neondb_owner:npg_vD2Iatbq0CiM@ep-still-thunder-atsunix7
 DISCORD_WEBHOOK_URL = os.getenv("DISCORD_WEBHOOK_URL")
 DATABASE_URL = os.getenv("DATABASE_URL", NEON_URL)
 
+# Update this URL when your dashboard is live
 DASHBOARD_URL = "https://your-future-dashboard.com" 
 
 def send_discord_alert(ticker, change_pct):
@@ -30,16 +31,32 @@ def send_discord_alert(ticker, change_pct):
         print("🛑 Please open your .env file, delete the contents, and paste your REAL Discord Webhook link.")
         return
     
-    message = {
-        "content": f"🚨 **MARKET ALERT** 🚨\nTicker: **{ticker}** dropped **{change_pct:.2f}%** today!\n👉 **View Dashboard:** {DASHBOARD_URL}"
+    # Option 2: Rich Embed payload where clicking the Title or the Link redirects to the dashboard
+    payload = {
+        "embeds": [
+            {
+                "title": f"🚨 MARKET ALERT: {ticker} Dropped!",
+                "url": DASHBOARD_URL,  # Makes the title card clickable to open the dashboard
+                "description": (
+                    f"Significant daily movement detected for **{ticker}**.\n\n"
+                    f"📉 **Change:** {change_pct:.2f}%\n\n"
+                    f"🔗 **[Click here to view live charts on the Dashboard]({DASHBOARD_URL})**"
+                ),
+                "color": 15158332,  # A sharp crimson red color for alerts
+                "footer": {
+                    "text": "Midnight Data Robot"
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        ]
     }
     
     try:
         headers = {"Content-Type": "application/json"}
-        response = requests.post(webhook_url, json=message, headers=headers)
+        response = requests.post(webhook_url, json=payload, headers=headers)
         
         if response.status_code in [200, 204]:
-            print(f"📢 Alert successfully sent to Discord for {ticker}")
+            print(f"📢 Embed alert successfully sent to Discord for {ticker}")
         else:
             print(f"❌ Discord API returned status {response.status_code}")
             print(f"🔍 Error Details: {response.text}") 
@@ -71,6 +88,7 @@ for t in tickers:
             curr_close = df['Close'].iloc[-1]
             change_pct = ((curr_close - prev_close) / prev_close) * 100
             
+            # Triggers if the stock falls 3% or more
             if change_pct <= -3.0:
                 send_discord_alert(t, change_pct)
             
