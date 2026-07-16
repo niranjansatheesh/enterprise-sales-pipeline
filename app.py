@@ -35,7 +35,7 @@ if "auth_otp" not in st.session_state:
 if "auth_target" not in st.session_state:
     st.session_state.auth_target = None
 if "auth_method" not in st.session_state:
-    st.session_state.auth_method = None  # "email" or "phone"
+    st.session_state.auth_method = None
 if "otp_attempts" not in st.session_state:
     st.session_state.otp_attempts = 0
 if "signup_data" not in st.session_state:
@@ -87,8 +87,6 @@ st.markdown(f"""
 .auth-sub {{ font-size:0.8rem; color:{T['subtext']}; margin-bottom:1rem; }}
 .gdpr-box {{ font-size:0.7rem; color:{T['subtext']}; background:rgba(0,0,0,0.1);
     padding:0.8rem; border-radius:8px; margin:0.8rem 0; line-height:1.5; }}
-.otp-method-box {{ border:1px solid {T['border']}; border-radius:8px; padding:1rem;
-    background:rgba(0,0,0,0.05); margin:0.8rem 0; }}
 
 .tk-price-row {{ display:flex; align-items:baseline; gap:0.8rem; }}
 .tk-price {{ font-size:2.6rem; font-weight:800; color:{T['text']}; letter-spacing:-0.02em; }}
@@ -402,25 +400,27 @@ if st.session_state.show_login and not st.session_state.authenticated:
 
 if st.session_state.show_signup and not st.session_state.authenticated:
     with st.expander("📝 Create Account", expanded=True):
+        st.markdown("**Step 1: Your Details**")
+        full_name = st.text_input("Full Name", placeholder="John Doe", key="fullname_signup")
+        
+        st.markdown("**Step 2: Choose Verification Method**")
+        verification_method = st.radio(
+            "How would you like to verify your account?",
+            ["📧 Email", "📱 Phone Number"],
+            label_visibility="collapsed",
+            key="verify_method_radio"
+        )
+        
+        # Display appropriate input field OUTSIDE the form - updates in real-time
+        if verification_method == "📧 Email":
+            email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input_signup")
+        else:
+            email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input_signup")
+        
         with st.form("signup_form"):
-            st.markdown("**Step 1: Your Details**")
-            full_name = st.text_input("Full Name", placeholder="John Doe")
-            
-            st.markdown("**Step 2: Choose Verification Method**")
-            verification_method = st.radio(
-                "How would you like to verify your account?",
-                ["📧 Email", "📱 Phone Number"],
-                label_visibility="collapsed"
-            )
-            
-            if verification_method == "📧 Email":
-                email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input")
-            else:
-                email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input")
-            
             st.markdown("**Step 3: Password**")
-            password = st.text_input("Password", type="password", placeholder="Min. 8 chars")
-            password_confirm = st.text_input("Confirm Password", type="password")
+            password = st.text_input("Password", type="password", placeholder="Min. 8 chars", key="pwd_signup")
+            password_confirm = st.text_input("Confirm Password", type="password", key="pwd_confirm_signup")
             
             st.markdown('<div class="gdpr-box">', unsafe_allow_html=True)
             st.markdown("""
@@ -429,52 +429,58 @@ if st.session_state.show_signup and not st.session_state.authenticated:
             - You can delete your account anytime
             - No data sharing without consent
             """)
-            gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy")
+            gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy", key="gdpr_signup")
             st.markdown('</div>', unsafe_allow_html=True)
             
             submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
+        
+        if submitted:
+            # Grab the values from session state
+            full_name_val = st.session_state.get("fullname_signup", "")
+            email_or_phone_val = st.session_state.get("email_input_signup" if verification_method == "📧 Email" else "phone_input_signup", "")
+            password_val = st.session_state.get("pwd_signup", "")
+            password_confirm_val = st.session_state.get("pwd_confirm_signup", "")
+            gdpr_consent_val = st.session_state.get("gdpr_signup", False)
             
-            if submitted:
-                if not all([full_name, email_or_phone, password, password_confirm]):
-                    st.error("Please fill all fields.")
-                elif len(password) < 8:
-                    st.error("Password must be at least 8 characters.")
-                elif password != password_confirm:
-                    st.error("Passwords don't match.")
-                elif not gdpr_consent:
-                    st.error("Please accept Terms & Privacy Policy.")
+            if not all([full_name_val, email_or_phone_val, password_val, password_confirm_val]):
+                st.error("Please fill all fields.")
+            elif len(password_val) < 8:
+                st.error("Password must be at least 8 characters.")
+            elif password_val != password_confirm_val:
+                st.error("Passwords don't match.")
+            elif not gdpr_consent_val:
+                st.error("Please accept Terms & Privacy Policy.")
+            else:
+                is_email = verification_method == "📧 Email"
+                is_phone = verification_method == "📱 Phone Number"
+                
+                if is_email and not is_valid_email(email_or_phone_val):
+                    st.error("Invalid email format.")
+                elif is_phone and not is_valid_phone(email_or_phone_val):
+                    st.error("Invalid phone format (e.g., +33 6 XX XX XX XX).")
+                elif user_exists(email_or_phone_val):
+                    st.error("This email/phone is already registered.")
                 else:
-                    is_email = verification_method == "📧 Email"
-                    is_phone = verification_method == "📱 Phone Number"
+                    otp = str(random.randint(100000, 999999))
                     
-                    if is_email and not is_valid_email(email_or_phone):
-                        st.error("Invalid email format.")
-                    elif is_phone and not is_valid_phone(email_or_phone):
-                        st.error("Invalid phone format (e.g., +33 6 XX XX XX XX).")
-                    elif user_exists(email_or_phone):
-                        st.error("This email/phone is already registered.")
-                    else:
-                        otp = str(random.randint(100000, 999999))
-                        
-                        # Send OTP based on method chosen
-                        sent = False
-                        if is_email:
-                            sent = send_otp_email(email_or_phone, otp)
-                        elif is_phone:
-                            sent = send_otp_sms(email_or_phone, otp)
-                        
-                        if sent:
-                            st.session_state.auth_otp = otp
-                            st.session_state.auth_target = email_or_phone.strip()
-                            st.session_state.auth_method = "email" if is_email else "phone"
-                            st.session_state.auth_step = "otp_verify"
-                            st.session_state.signup_data = {
-                                "full_name": full_name,
-                                "password": password,
-                                "gdpr_consent": gdpr_consent
-                            }
-                            st.session_state.show_signup = False
-                            st.rerun()
+                    sent = False
+                    if is_email:
+                        sent = send_otp_email(email_or_phone_val, otp)
+                    elif is_phone:
+                        sent = send_otp_sms(email_or_phone_val, otp)
+                    
+                    if sent:
+                        st.session_state.auth_otp = otp
+                        st.session_state.auth_target = email_or_phone_val.strip()
+                        st.session_state.auth_method = "email" if is_email else "phone"
+                        st.session_state.auth_step = "otp_verify"
+                        st.session_state.signup_data = {
+                            "full_name": full_name_val,
+                            "password": password_val,
+                            "gdpr_consent": gdpr_consent_val
+                        }
+                        st.session_state.show_signup = False
+                        st.rerun()
         
         if st.button("Already have an account? Sign in instead", use_container_width=True, key="switch_signin"):
             st.session_state.show_signup = False
