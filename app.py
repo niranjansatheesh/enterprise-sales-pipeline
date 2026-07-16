@@ -34,6 +34,8 @@ if "auth_otp" not in st.session_state:
     st.session_state.auth_otp = None
 if "auth_target" not in st.session_state:
     st.session_state.auth_target = None
+if "auth_method" not in st.session_state:
+    st.session_state.auth_method = None  # "email" or "phone"
 if "otp_attempts" not in st.session_state:
     st.session_state.otp_attempts = 0
 if "signup_data" not in st.session_state:
@@ -85,6 +87,8 @@ st.markdown(f"""
 .auth-sub {{ font-size:0.8rem; color:{T['subtext']}; margin-bottom:1rem; }}
 .gdpr-box {{ font-size:0.7rem; color:{T['subtext']}; background:rgba(0,0,0,0.1);
     padding:0.8rem; border-radius:8px; margin:0.8rem 0; line-height:1.5; }}
+.otp-method-box {{ border:1px solid {T['border']}; border-radius:8px; padding:1rem;
+    background:rgba(0,0,0,0.05); margin:0.8rem 0; }}
 
 .tk-price-row {{ display:flex; align-items:baseline; gap:0.8rem; }}
 .tk-price {{ font-size:2.6rem; font-weight:800; color:{T['text']}; letter-spacing:-0.02em; }}
@@ -154,18 +158,16 @@ def load_market_data():
 # =========================================================
 # HELPER FUNCTIONS
 # =========================================================
-def is_valid_input(target):
-    """Validate email or phone; return type or None."""
+def is_valid_email(email):
+    """Validate email format."""
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(email_regex, email.strip()) is not None
+
+def is_valid_phone(phone):
+    """Validate phone format."""
     phone_regex = r'^\+?1?\d{9,15}$'
-    
-    target = target.strip().replace(" ", "").replace("-", "")
-    
-    if re.match(email_regex, target):
-        return "email"
-    elif re.match(phone_regex, target):
-        return "phone"
-    return None
+    phone = phone.strip().replace(" ", "").replace("-", "")
+    return re.match(phone_regex, phone) is not None
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -226,7 +228,7 @@ def send_otp_sms(phone, otp):
         phone_number = os.getenv("TWILIO_PHONE_NUMBER")
         
         if not all([account_sid, auth_token, phone_number]):
-            st.info(f"Demo OTP: {otp}")
+            st.info(f"📱 Demo SMS OTP: **{otp}**")
             return True
             
         client = Client(account_sid, auth_token)
@@ -235,9 +237,10 @@ def send_otp_sms(phone, otp):
             from_=phone_number,
             to=phone.strip()
         )
+        st.success(f"✅ SMS sent to {phone}")
         return True
     except Exception as e:
-        st.error(f"SMS failed: {e}")
+        st.error(f"❌ SMS failed: {e}")
         return False
 
 def send_otp_email(email, otp):
@@ -247,7 +250,7 @@ def send_otp_email(email, otp):
         from_email = os.getenv("SENDGRID_FROM_EMAIL")
         
         if not all([api_key, from_email]):
-            st.info(f"Demo OTP: {otp}")
+            st.info(f"📧 Demo Email OTP: **{otp}**")
             return True
             
         message = Mail(
@@ -269,9 +272,10 @@ def send_otp_email(email, otp):
         )
         sg = SendGridAPIClient(api_key)
         sg.send(message)
+        st.success(f"✅ Email sent to {email}")
         return True
     except Exception as e:
-        st.error(f"Email failed: {e}")
+        st.error(f"❌ Email failed: {e}")
         return False
 
 def request_data_deletion(email_or_phone):
@@ -294,7 +298,7 @@ def request_data_deletion(email_or_phone):
 df = load_market_data()
 
 # =========================================================
-# MASTHEAD (always show, with login/signup options)
+# MASTHEAD
 # =========================================================
 brand_col, theme_col, auth_col = st.columns([5, 1, 2])
 
@@ -324,7 +328,6 @@ with theme_col:
 
 with auth_col:
     if st.session_state.authenticated and st.session_state.username:
-        # User is logged in - show account popover
         username_display = st.session_state.username[:12] + "..." if len(st.session_state.username) > 12 else st.session_state.username
         with st.popover(f"👤 {username_display}", use_container_width=True):
             st.markdown(f"**{st.session_state.username}**")
@@ -358,7 +361,6 @@ with auth_col:
                 st.session_state.username = None
                 st.rerun()
     else:
-        # User is not logged in - show sign in / sign up options
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Sign In", use_container_width=True, key="signin_btn_header"):
@@ -370,7 +372,7 @@ with auth_col:
 st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
 
 # =========================================================
-# AUTHENTICATION MODALS (popup forms)
+# AUTHENTICATION MODALS
 # =========================================================
 if st.session_state.show_login and not st.session_state.authenticated:
     with st.expander("👤 Sign In", expanded=True):
@@ -401,8 +403,22 @@ if st.session_state.show_login and not st.session_state.authenticated:
 if st.session_state.show_signup and not st.session_state.authenticated:
     with st.expander("📝 Create Account", expanded=True):
         with st.form("signup_form"):
+            st.markdown("**Step 1: Your Details**")
             full_name = st.text_input("Full Name", placeholder="John Doe")
-            email_or_phone = st.text_input("Email or Phone", placeholder="you@example.com or +33 6 XX XX XX XX")
+            
+            st.markdown("**Step 2: Choose Verification Method**")
+            verification_method = st.radio(
+                "How would you like to verify your account?",
+                ["📧 Email", "📱 Phone Number"],
+                label_visibility="collapsed"
+            )
+            
+            if verification_method == "📧 Email":
+                email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input")
+            else:
+                email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input")
+            
+            st.markdown("**Step 3: Password**")
             password = st.text_input("Password", type="password", placeholder="Min. 8 chars")
             password_confirm = st.text_input("Confirm Password", type="password")
             
@@ -416,7 +432,7 @@ if st.session_state.show_signup and not st.session_state.authenticated:
             gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy")
             st.markdown('</div>', unsafe_allow_html=True)
             
-            submitted = st.form_submit_button("Create Account", use_container_width=True)
+            submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
             
             if submitted:
                 if not all([full_name, email_or_phone, password, password_confirm]):
@@ -425,34 +441,40 @@ if st.session_state.show_signup and not st.session_state.authenticated:
                     st.error("Password must be at least 8 characters.")
                 elif password != password_confirm:
                     st.error("Passwords don't match.")
-                elif not is_valid_input(email_or_phone):
-                    st.error("Invalid email or phone format.")
                 elif not gdpr_consent:
                     st.error("Please accept Terms & Privacy Policy.")
-                elif user_exists(email_or_phone):
-                    st.error("This email/phone is already registered.")
                 else:
-                    otp = str(random.randint(100000, 999999))
-                    target_type = is_valid_input(email_or_phone)
+                    is_email = verification_method == "📧 Email"
+                    is_phone = verification_method == "📱 Phone Number"
                     
-                    sent = False
-                    if target_type == "email":
-                        sent = send_otp_email(email_or_phone, otp)
-                    elif target_type == "phone":
-                        sent = send_otp_sms(email_or_phone, otp)
-                    
-                    if sent:
-                        st.session_state.auth_otp = otp
-                        st.session_state.auth_target = email_or_phone.strip()
-                        st.session_state.auth_step = "otp_verify"
-                        st.session_state.signup_data = {
-                            "full_name": full_name,
-                            "password": password,
-                            "gdpr_consent": gdpr_consent
-                        }
-                        st.session_state.show_signup = False
-                        st.success(f"OTP sent! Check your {target_type}.")
-                        st.rerun()
+                    if is_email and not is_valid_email(email_or_phone):
+                        st.error("Invalid email format.")
+                    elif is_phone and not is_valid_phone(email_or_phone):
+                        st.error("Invalid phone format (e.g., +33 6 XX XX XX XX).")
+                    elif user_exists(email_or_phone):
+                        st.error("This email/phone is already registered.")
+                    else:
+                        otp = str(random.randint(100000, 999999))
+                        
+                        # Send OTP based on method chosen
+                        sent = False
+                        if is_email:
+                            sent = send_otp_email(email_or_phone, otp)
+                        elif is_phone:
+                            sent = send_otp_sms(email_or_phone, otp)
+                        
+                        if sent:
+                            st.session_state.auth_otp = otp
+                            st.session_state.auth_target = email_or_phone.strip()
+                            st.session_state.auth_method = "email" if is_email else "phone"
+                            st.session_state.auth_step = "otp_verify"
+                            st.session_state.signup_data = {
+                                "full_name": full_name,
+                                "password": password,
+                                "gdpr_consent": gdpr_consent
+                            }
+                            st.session_state.show_signup = False
+                            st.rerun()
         
         if st.button("Already have an account? Sign in instead", use_container_width=True, key="switch_signin"):
             st.session_state.show_signup = False
@@ -462,7 +484,14 @@ if st.session_state.show_signup and not st.session_state.authenticated:
 # OTP verification
 if st.session_state.auth_step == "otp_verify":
     with st.expander("🔐 Verify Code", expanded=True):
-        st.markdown("Enter the verification code sent to your email/phone:")
+        method_display = "email" if st.session_state.auth_method == "email" else "phone"
+        target_display = st.session_state.auth_target
+        if "@" in target_display:
+            target_display = target_display[:3] + "***@" + target_display.split("@")[1]
+        
+        st.markdown(f"**Enter the verification code sent to your {method_display}:**")
+        st.caption(f"Sent to: {target_display}")
+        
         with st.form("otp_form"):
             otp_input = st.text_input("Verification Code", placeholder="000000", max_chars=6)
             submitted = st.form_submit_button("Verify & Create Account", use_container_width=True)
@@ -480,19 +509,19 @@ if st.session_state.auth_step == "otp_verify":
                         st.session_state.username = st.session_state.auth_target
                         st.session_state.auth_step = "login"
                         st.session_state.show_signup = False
-                        st.success("Account created! You're now logged in.")
+                        st.success("✅ Account created! You're now logged in.")
                         st.rerun()
                     else:
                         st.error("Failed to create account. Try again.")
                 else:
                     st.session_state.otp_attempts += 1
                     if st.session_state.otp_attempts >= 3:
-                        st.error("Too many attempts. Please try again.")
+                        st.error("❌ Too many attempts. Please try again.")
                         st.session_state.auth_step = "login"
                         st.session_state.otp_attempts = 0
                         st.rerun()
                     else:
-                        st.error(f"Incorrect code. ({st.session_state.otp_attempts}/3 attempts)")
+                        st.error(f"❌ Incorrect code. ({st.session_state.otp_attempts}/3 attempts)")
 
 # =========================================================
 # DASHBOARD (always visible)
