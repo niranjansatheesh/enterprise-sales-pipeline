@@ -20,6 +20,28 @@ load_dotenv(dotenv_path=SCRIPT_DIR / ".env")
 st.set_page_config(page_title="MARKETPULSE", page_icon="📈", layout="wide")
 
 # =========================================================
+# INITIALIZE SESSION STATE
+# =========================================================
+if "theme" not in st.session_state:
+    st.session_state.theme = "Dark"
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "auth_step" not in st.session_state:
+    st.session_state.auth_step = "login"
+if "auth_otp" not in st.session_state:
+    st.session_state.auth_otp = None
+if "auth_target" not in st.session_state:
+    st.session_state.auth_target = None
+if "otp_attempts" not in st.session_state:
+    st.session_state.otp_attempts = 0
+if "signup_data" not in st.session_state:
+    st.session_state.signup_data = {}
+if "alerts_read" not in st.session_state:
+    st.session_state.alerts_read = False
+
+# =========================================================
 # THEME DEFINITIONS
 # =========================================================
 THEMES = {
@@ -36,23 +58,6 @@ THEMES = {
         upfill="rgba(62,213,152,0.10)", downfill="rgba(242,109,109,0.10)",
     ),
 }
-
-if "theme" not in st.session_state:
-    st.session_state.theme = "Dark"
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "username" not in st.session_state:
-    st.session_state.username = None
-if "auth_step" not in st.session_state:
-    st.session_state.auth_step = "login"  # login, signup, otp_verify
-if "auth_otp" not in st.session_state:
-    st.session_state.auth_otp = None
-if "auth_target" not in st.session_state:
-    st.session_state.auth_target = None
-if "otp_attempts" not in st.session_state:
-    st.session_state.otp_attempts = 0
-if "alerts_read" not in st.session_state:
-    st.session_state.alerts_read = False
 
 T = THEMES[st.session_state.theme]
 
@@ -83,6 +88,7 @@ st.markdown(f"""
 .tk-price {{ font-size:2.6rem; font-weight:800; color:{T['text']}; letter-spacing:-0.02em; }}
 .tk-change-up   {{ font-size:1.15rem; font-weight:700; color:{T['up']}; }}
 .tk-change-down {{ font-size:1.15rem; font-weight:700; color:{T['down']}; }}
+.tk-asof {{ font-size:0.72rem; color:{T['subtext']}; margin:0.1rem 0 0.6rem 0; }}
 
 .stat-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:0.6rem 0; }}
 .stat-card {{ border:1px solid {T['border']}; border-radius:8px; padding:0.65rem 0.9rem; background:{T['panel']}; }}
@@ -99,7 +105,7 @@ div[data-testid="stDataFrame"] {{ border:1px solid {T['border']}; border-radius:
 """, unsafe_allow_html=True)
 
 # =========================================================
-# DATABASE SETUP (users table + market data)
+# DATABASE SETUP
 # =========================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -110,7 +116,6 @@ if not DATABASE_URL:
 def init_db():
     engine = create_engine(DATABASE_URL)
     with engine.connect() as conn:
-        # Create users table (GDPR-compliant)
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -152,9 +157,11 @@ def is_valid_input(target):
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     phone_regex = r'^\+?1?\d{9,15}$'
     
-    if re.match(email_regex, target.strip()):
+    target = target.strip().replace(" ", "").replace("-", "")
+    
+    if re.match(email_regex, target):
         return "email"
-    elif re.match(phone_regex, target.strip().replace(" ", "").replace("-", "")):
+    elif re.match(phone_regex, target):
         return "phone"
     return None
 
@@ -204,7 +211,7 @@ def verify_credentials(email_or_phone, password):
                     "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = :uid"
                 ), {"uid": user[0]})
                 conn.commit()
-                return user[1]  # full_name
+                return user[1]
             return None
     except:
         return None
@@ -212,10 +219,18 @@ def verify_credentials(email_or_phone, password):
 def send_otp_sms(phone, otp):
     """Send OTP via Twilio SMS."""
     try:
-        client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
+        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        phone_number = os.getenv("TWILIO_PHONE_NUMBER")
+        
+        if not all([account_sid, auth_token, phone_number]):
+            st.warning("SMS service not configured. Using demo OTP: " + otp)
+            return True
+            
+        client = Client(account_sid, auth_token)
         client.messages.create(
             body=f"Your MARKETPULSE verification code is: {otp}. Expires in 10 minutes.",
-            from_=os.getenv("TWILIO_PHONE_NUMBER"),
+            from_=phone_number,
             to=phone.strip()
         )
         return True
@@ -226,8 +241,15 @@ def send_otp_sms(phone, otp):
 def send_otp_email(email, otp):
     """Send OTP via SendGrid email."""
     try:
+        api_key = os.getenv("SENDGRID_API_KEY")
+        from_email = os.getenv("SENDGRID_FROM_EMAIL")
+        
+        if not all([api_key, from_email]):
+            st.warning("Email service not configured. Using demo OTP: " + otp)
+            return True
+            
         message = Mail(
-            from_email=os.getenv("SENDGRID_FROM_EMAIL"),
+            from_email=from_email,
             to_emails=email.strip(),
             subject="Your MARKETPULSE Verification Code",
             html_content=f"""
@@ -243,7 +265,7 @@ def send_otp_email(email, otp):
             </div>
             """
         )
-        sg = SendGridAPIClient(os.getenv("SENDGRID_API_KEY"))
+        sg = SendGridAPIClient(api_key)
         sg.send(message)
         return True
     except Exception as e:
@@ -297,6 +319,7 @@ if not st.session_state.authenticated:
                         if full_name:
                             st.session_state.authenticated = True
                             st.session_state.username = email_or_phone.strip()
+                            st.success("Logged in successfully!")
                             st.rerun()
                         else:
                             st.error("Invalid email/phone or password.")
@@ -325,7 +348,7 @@ if not st.session_state.authenticated:
                 - We encrypt and protect your data
                 - You can delete your account anytime
                 - No data sharing without consent
-                - Read our [Privacy Policy](#)
+                - Read our Privacy Policy
                 """)
                 gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy")
                 st.markdown('</div>', unsafe_allow_html=True)
@@ -346,34 +369,26 @@ if not st.session_state.authenticated:
                     elif user_exists(email_or_phone):
                         st.error("This email/phone is already registered.")
                     else:
-                        # Send OTP
                         otp = str(random.randint(100000, 999999))
                         target_type = is_valid_input(email_or_phone)
                         
+                        sent = False
                         if target_type == "email":
-                            if send_otp_email(email_or_phone, otp):
-                                st.session_state.auth_otp = otp
-                                st.session_state.auth_target = email_or_phone.strip()
-                                st.session_state.auth_step = "otp_verify"
-                                st.session_state.signup_data = {
-                                    "full_name": full_name,
-                                    "password": password,
-                                    "gdpr_consent": gdpr_consent
-                                }
-                                st.success("OTP sent to your email. Verify below.")
-                                st.rerun()
+                            sent = send_otp_email(email_or_phone, otp)
                         elif target_type == "phone":
-                            if send_otp_sms(email_or_phone, otp):
-                                st.session_state.auth_otp = otp
-                                st.session_state.auth_target = email_or_phone.strip()
-                                st.session_state.auth_step = "otp_verify"
-                                st.session_state.signup_data = {
-                                    "full_name": full_name,
-                                    "password": password,
-                                    "gdpr_consent": gdpr_consent
-                                }
-                                st.success("OTP sent to your phone. Verify below.")
-                                st.rerun()
+                            sent = send_otp_sms(email_or_phone, otp)
+                        
+                        if sent:
+                            st.session_state.auth_otp = otp
+                            st.session_state.auth_target = email_or_phone.strip()
+                            st.session_state.auth_step = "otp_verify"
+                            st.session_state.signup_data = {
+                                "full_name": full_name,
+                                "password": password,
+                                "gdpr_consent": gdpr_consent
+                            }
+                            st.success(f"OTP sent to {email_or_phone}. Verify below.")
+                            st.rerun()
             
             st.markdown("---")
             if st.button("Back to Sign In", use_container_width=True, key="back_login"):
@@ -385,7 +400,12 @@ if not st.session_state.authenticated:
         elif st.session_state.auth_step == "otp_verify":
             st.markdown('<div class="auth-box">', unsafe_allow_html=True)
             st.markdown('<div class="auth-title">Verify Code</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="auth-sub">Enter the code sent to {st.session_state.auth_target[:3]}***</div>', unsafe_allow_html=True)
+            
+            display_target = st.session_state.auth_target if st.session_state.auth_target else "your account"
+            if "@" in str(display_target):
+                display_target = display_target[:3] + "***@" + display_target.split("@")[1]
+            
+            st.markdown(f'<div class="auth-sub">Enter the code sent to {display_target}</div>', unsafe_allow_html=True)
             
             with st.form("otp_form"):
                 otp_input = st.text_input("Verification Code", placeholder="000000", max_chars=6)
@@ -393,21 +413,20 @@ if not st.session_state.authenticated:
                 
                 if submitted:
                     if otp_input.strip() == st.session_state.auth_otp:
-                        # Create user now
                         data = st.session_state.signup_data
                         if create_user(
                             st.session_state.auth_target,
-                            data["password"],
-                            data["full_name"],
-                            data["gdpr_consent"]
+                            data.get("password", ""),
+                            data.get("full_name", "User"),
+                            data.get("gdpr_consent", False)
                         ):
                             st.session_state.authenticated = True
                             st.session_state.username = st.session_state.auth_target
-                            st.success("Account created! Logging in...")
                             st.session_state.auth_step = "login"
+                            st.success("Account created! Logging in...")
                             st.rerun()
                         else:
-                            st.error("Failed to create account.")
+                            st.error("Failed to create account. Try again.")
                     else:
                         st.session_state.otp_attempts += 1
                         if st.session_state.otp_attempts >= 3:
@@ -416,7 +435,7 @@ if not st.session_state.authenticated:
                             st.session_state.otp_attempts = 0
                             st.rerun()
                         else:
-                            st.error(f"Incorrect code. ({st.session_state.otp_attempts}/3)")
+                            st.error(f"Incorrect code. ({st.session_state.otp_attempts}/3 attempts)")
             st.markdown('</div>', unsafe_allow_html=True)
     
     st.stop()
@@ -424,6 +443,12 @@ if not st.session_state.authenticated:
 # =========================================================
 # AUTHENTICATED DASHBOARD STARTS HERE
 # =========================================================
+
+# Verify authenticated state is consistent
+if not st.session_state.authenticated or not st.session_state.username:
+    st.session_state.authenticated = False
+    st.session_state.username = None
+    st.rerun()
 
 df = load_market_data()
 
@@ -447,44 +472,47 @@ with brand_col:
     """, unsafe_allow_html=True)
 
 with settings_col:
-    with st.popover(f"👤 {st.session_state.username[:20]}", use_container_width=True):
-        st.markdown(f"**{st.session_state.username}**")
-        
-        # GDPR Controls
-        st.markdown("---")
-        st.markdown("**Account & Privacy**")
-        theme_choice = st.radio("Theme", ["Dark", "Light"], index=0 if st.session_state.theme == "Dark" else 1)
-        if theme_choice != st.session_state.theme:
-            st.session_state.theme = theme_choice
-            st.rerun()
-        
-        st.markdown("---")
-        if st.button("📋 Privacy Policy", use_container_width=True):
-            st.info("""
-            ### MARKETPULSE Privacy Policy
+    if st.session_state.authenticated and st.session_state.username:
+        username_display = st.session_state.username[:15] + "..." if len(st.session_state.username) > 15 else st.session_state.username
+        with st.popover(f"👤 {username_display}", use_container_width=True):
+            st.markdown(f"**{st.session_state.username}**")
             
-            **Data We Collect:** Email/phone, name, trading preferences
-            **Data Protection:** AES-256 encryption, GDPR-compliant infrastructure
-            **Your Rights:**
-            - Access your data anytime
-            - Request deletion (30-day grace period)
-            - Opt-out of analytics
-            - Port your data
+            st.markdown("---")
+            st.markdown("**Account & Privacy**")
+            theme_choice = st.radio("Theme", ["Dark", "Light"], 
+                                   index=0 if st.session_state.theme == "Dark" else 1,
+                                   label_visibility="collapsed")
+            if theme_choice != st.session_state.theme:
+                st.session_state.theme = theme_choice
+                st.rerun()
             
-            **Contact:** privacy@marketpulse.com
-            """)
-        
-        if st.button("🗑️ Request Data Deletion", use_container_width=True):
-            if request_data_deletion(st.session_state.username):
-                st.success("Deletion requested. Your data will be purged in 30 days.")
-            else:
-                st.error("Deletion request failed.")
-        
-        st.markdown("---")
-        if st.button("Log Out", use_container_width=True):
-            st.session_state.authenticated = False
-            st.session_state.username = None
-            st.rerun()
+            st.markdown("---")
+            if st.button("📋 Privacy Policy", use_container_width=True):
+                st.info("""
+                ### MARKETPULSE Privacy Policy
+                
+                **Data We Collect:** Email/phone, name, trading preferences
+                **Data Protection:** AES-256 encryption, GDPR-compliant infrastructure
+                **Your Rights:**
+                - Access your data anytime
+                - Request deletion (30-day grace period)
+                - Opt-out of analytics
+                - Port your data
+                
+                **Contact:** privacy@marketpulse.com
+                """)
+            
+            if st.button("🗑️ Request Data Deletion", use_container_width=True):
+                if request_data_deletion(st.session_state.username):
+                    st.success("Deletion requested. Your data will be purged in 30 days.")
+                else:
+                    st.error("Deletion request failed.")
+            
+            st.markdown("---")
+            if st.button("Log Out", use_container_width=True):
+                st.session_state.authenticated = False
+                st.session_state.username = None
+                st.rerun()
 
 st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
 
@@ -501,7 +529,7 @@ selected_ticker = st.sidebar.radio("Select Ticker", tickers, label_visibility="c
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⚙️ Settings")
-notify_pref = st.sidebar.radio("Notifications", ["Email", "SMS", "None"])
+notify_pref = st.sidebar.radio("Notifications", ["Email", "SMS", "None"], label_visibility="collapsed")
 
 data = df[df['ticker'] == selected_ticker].copy().sort_values('date')
 
@@ -521,6 +549,7 @@ st.markdown(f"""
     <span class="tk-price">{last['close_price']:,.2f}</span>
     <span class="{cls}">{arrow} {delta:+,.2f} ({pct:+.2f}%)</span>
 </div>
+<div class="tk-asof">At close on {last['date'].strftime('%b %d, %Y')}</div>
 """, unsafe_allow_html=True)
 
 # =========================================================
