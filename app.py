@@ -40,10 +40,6 @@ if "otp_attempts" not in st.session_state:
     st.session_state.otp_attempts = 0
 if "signup_data" not in st.session_state:
     st.session_state.signup_data = {}
-if "show_login" not in st.session_state:
-    st.session_state.show_login = False
-if "show_signup" not in st.session_state:
-    st.session_state.show_signup = False
 if "selected_ticker_global" not in st.session_state:
     st.session_state.selected_ticker_global = None
 
@@ -84,23 +80,22 @@ st.markdown(f"""
 .mast-divider {{ border-bottom:1px solid {T['border']}; margin:0.4rem 0 1.2rem 0; }}
 
 .ticker-card {{ 
-    border: 2px solid {T['border']}; border-radius:10px; padding:1rem;
+    border: 2px solid {T['border']}; border-radius:10px; padding:0.8rem;
     background:{T['panel']}; cursor:pointer; transition:all 0.2s;
-    margin-bottom:0.5rem;
+    margin-bottom:0.5rem; text-align:center;
 }}
 .ticker-card:hover {{ border-color:{T['accent']}; transform:scale(1.02); }}
 .ticker-card.active {{ 
-    border-color:{T['accent']}; background:rgba({T['accent'].lstrip('#')}, 0.1);
+    border-color:{T['accent']}; background:rgba(59, 130, 246, 0.1);
 }}
-.ticker-symbol {{ font-size:1.3rem; font-weight:800; color:{T['accent']}; }}
-.ticker-price {{ font-size:1.1rem; font-weight:700; color:{T['text']}; }}
-.ticker-change-up {{ color:{T['up']}; font-weight:700; }}
-.ticker-change-down {{ color:{T['down']}; font-weight:700; }}
+.ticker-symbol {{ font-size:1.2rem; font-weight:800; color:{T['accent']}; }}
+.ticker-price {{ font-size:1rem; font-weight:700; color:{T['text']}; margin:0.3rem 0; }}
+.ticker-change-up {{ color:{T['up']}; font-weight:700; font-size:0.9rem; }}
+.ticker-change-down {{ color:{T['down']}; font-weight:700; font-size:0.9rem; }}
 
-.auth-box {{ max-width:420px; padding:1.5rem;
+.auth-modal {{ max-width:400px; padding:1.5rem;
     border:1px solid {T['border']}; border-radius:12px; background:{T['panel']}; }}
-.auth-title {{ font-size:1.3rem; font-weight:800; color:{T['text']}; margin-bottom:0.4rem; }}
-.auth-sub {{ font-size:0.8rem; color:{T['subtext']}; margin-bottom:1rem; }}
+.auth-title {{ font-size:1.2rem; font-weight:800; color:{T['text']}; margin-bottom:1rem; }}
 .gdpr-box {{ font-size:0.7rem; color:{T['subtext']}; background:rgba(0,0,0,0.1);
     padding:0.8rem; border-radius:8px; margin:0.8rem 0; line-height:1.5; }}
 
@@ -173,12 +168,10 @@ def load_market_data():
 # HELPER FUNCTIONS
 # =========================================================
 def is_valid_email(email):
-    """Validate email format."""
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(email_regex, email.strip()) is not None
 
 def is_valid_phone(phone):
-    """Validate phone format."""
     phone_regex = r'^\+?1?\d{9,15}$'
     phone = phone.strip().replace(" ", "").replace("-", "")
     return re.match(phone_regex, phone) is not None
@@ -235,7 +228,6 @@ def verify_credentials(email_or_phone, password):
         return None
 
 def send_otp_sms(phone, otp):
-    """Send OTP via Twilio SMS."""
     try:
         account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -258,7 +250,6 @@ def send_otp_sms(phone, otp):
         return False
 
 def send_otp_email(email, otp):
-    """Send OTP via SendGrid email."""
     try:
         api_key = os.getenv("SENDGRID_API_KEY")
         from_email = os.getenv("SENDGRID_FROM_EMAIL")
@@ -293,7 +284,6 @@ def send_otp_email(email, otp):
         return False
 
 def request_data_deletion(email_or_phone):
-    """Mark account for GDPR deletion (30-day grace period)."""
     try:
         with engine.connect() as conn:
             conn.execute(text("""
@@ -312,7 +302,7 @@ def request_data_deletion(email_or_phone):
 df = load_market_data()
 
 # =========================================================
-# MASTHEAD
+# MASTHEAD (SIMPLE - only brand, theme, auth buttons)
 # =========================================================
 brand_col, theme_col, auth_col = st.columns([5, 1, 2])
 
@@ -378,234 +368,187 @@ with auth_col:
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Sign In", use_container_width=True, key="signin_btn_header"):
-                st.session_state.show_login = True
+                with st.popover("👤 Sign In", use_container_width=True):
+                    with st.form("login_form"):
+                        email_or_phone = st.text_input("Email or Phone", placeholder="you@example.com or +33 6 XX XX XX XX")
+                        password = st.text_input("Password", type="password")
+                        submitted = st.form_submit_button("Sign In", use_container_width=True)
+                        
+                        if submitted:
+                            if not email_or_phone.strip() or not password.strip():
+                                st.error("Please fill all fields.")
+                            else:
+                                full_name = verify_credentials(email_or_phone, password)
+                                if full_name:
+                                    st.session_state.authenticated = True
+                                    st.session_state.username = email_or_phone.strip()
+                                    st.success("Logged in successfully!")
+                                    st.rerun()
+                                else:
+                                    st.error("Invalid email/phone or password.")
         with col2:
             if st.button("Sign Up", use_container_width=True, key="signup_btn_header"):
-                st.session_state.show_signup = True
+                with st.popover("📝 Sign Up", use_container_width=True):
+                    st.markdown("**Step 1: Your Details**")
+                    full_name = st.text_input("Full Name", placeholder="John Doe", key="fullname_signup")
+                    
+                    st.markdown("**Step 2: Choose Verification Method**")
+                    verification_method = st.radio(
+                        "How would you like to verify?",
+                        ["📧 Email", "📱 Phone Number"],
+                        label_visibility="collapsed",
+                        key="verify_method_radio"
+                    )
+                    
+                    if verification_method == "📧 Email":
+                        email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input_signup")
+                    else:
+                        email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input_signup")
+                    
+                    with st.form("signup_form"):
+                        st.markdown("**Step 3: Password**")
+                        password = st.text_input("Password", type="password", placeholder="Min. 8 chars", key="pwd_signup")
+                        password_confirm = st.text_input("Confirm Password", type="password", key="pwd_confirm_signup")
+                        
+                        st.markdown('<div class="gdpr-box">', unsafe_allow_html=True)
+                        st.markdown("""
+                        ✅ **GDPR Compliance**
+                        - We encrypt and protect your data
+                        - You can delete your account anytime
+                        - No data sharing without consent
+                        """)
+                        gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy", key="gdpr_signup")
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
+                    
+                    if submitted:
+                        full_name_val = st.session_state.get("fullname_signup", "")
+                        email_or_phone_val = st.session_state.get("email_input_signup" if verification_method == "📧 Email" else "phone_input_signup", "")
+                        password_val = st.session_state.get("pwd_signup", "")
+                        password_confirm_val = st.session_state.get("pwd_confirm_signup", "")
+                        gdpr_consent_val = st.session_state.get("gdpr_signup", False)
+                        
+                        if not all([full_name_val, email_or_phone_val, password_val, password_confirm_val]):
+                            st.error("Please fill all fields.")
+                        elif len(password_val) < 8:
+                            st.error("Password must be at least 8 characters.")
+                        elif password_val != password_confirm_val:
+                            st.error("Passwords don't match.")
+                        elif not gdpr_consent_val:
+                            st.error("Please accept Terms & Privacy Policy.")
+                        else:
+                            is_email = verification_method == "📧 Email"
+                            is_phone = verification_method == "📱 Phone Number"
+                            
+                            if is_email and not is_valid_email(email_or_phone_val):
+                                st.error("Invalid email format.")
+                            elif is_phone and not is_valid_phone(email_or_phone_val):
+                                st.error("Invalid phone format (e.g., +33 6 XX XX XX XX).")
+                            elif user_exists(email_or_phone_val):
+                                st.error("This email/phone is already registered.")
+                            else:
+                                otp = str(random.randint(100000, 999999))
+                                
+                                sent = False
+                                if is_email:
+                                    sent = send_otp_email(email_or_phone_val, otp)
+                                elif is_phone:
+                                    sent = send_otp_sms(email_or_phone_val, otp)
+                                
+                                if sent:
+                                    st.session_state.auth_otp = otp
+                                    st.session_state.auth_target = email_or_phone_val.strip()
+                                    st.session_state.auth_method = "email" if is_email else "phone"
+                                    st.session_state.auth_step = "otp_verify"
+                                    st.session_state.signup_data = {
+                                        "full_name": full_name_val,
+                                        "password": password_val,
+                                        "gdpr_consent": gdpr_consent_val
+                                    }
+                                    st.rerun()
+
+# OTP verification
+if st.session_state.auth_step == "otp_verify":
+    st.info("📧 Check your email/SMS for the verification code!")
+    with st.form("otp_form"):
+        otp_input = st.text_input("Verification Code", placeholder="000000", max_chars=6)
+        submitted = st.form_submit_button("Verify & Create Account", use_container_width=True)
+        
+        if submitted:
+            if otp_input.strip() == st.session_state.auth_otp:
+                data = st.session_state.signup_data
+                if create_user(
+                    st.session_state.auth_target,
+                    data.get("password", ""),
+                    data.get("full_name", "User"),
+                    data.get("gdpr_consent", False)
+                ):
+                    st.session_state.authenticated = True
+                    st.session_state.username = st.session_state.auth_target
+                    st.session_state.auth_step = "login"
+                    st.success("✅ Account created! You're now logged in.")
+                    st.rerun()
+                else:
+                    st.error("Failed to create account. Try again.")
+            else:
+                st.session_state.otp_attempts += 1
+                if st.session_state.otp_attempts >= 3:
+                    st.error("❌ Too many attempts. Please try again.")
+                    st.session_state.auth_step = "login"
+                    st.session_state.otp_attempts = 0
+                    st.rerun()
+                else:
+                    st.error(f"❌ Incorrect code. ({st.session_state.otp_attempts}/3 attempts)")
 
 st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
 
 # =========================================================
-# AUTHENTICATION MODALS
-# =========================================================
-if st.session_state.show_login and not st.session_state.authenticated:
-    with st.expander("👤 Sign In", expanded=True):
-        with st.form("login_form"):
-            email_or_phone = st.text_input("Email or Phone", placeholder="you@example.com or +33 6 XX XX XX XX")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Sign In", use_container_width=True)
-            
-            if submitted:
-                if not email_or_phone.strip() or not password.strip():
-                    st.error("Please fill all fields.")
-                else:
-                    full_name = verify_credentials(email_or_phone, password)
-                    if full_name:
-                        st.session_state.authenticated = True
-                        st.session_state.username = email_or_phone.strip()
-                        st.session_state.show_login = False
-                        st.success("Logged in successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid email/phone or password.")
-        
-        if st.button("New to MARKETPULSE? Sign up instead", use_container_width=True, key="switch_signup"):
-            st.session_state.show_login = False
-            st.session_state.show_signup = True
-            st.rerun()
-
-if st.session_state.show_signup and not st.session_state.authenticated:
-    with st.expander("📝 Create Account", expanded=True):
-        st.markdown("**Step 1: Your Details**")
-        full_name = st.text_input("Full Name", placeholder="John Doe", key="fullname_signup")
-        
-        st.markdown("**Step 2: Choose Verification Method**")
-        verification_method = st.radio(
-            "How would you like to verify your account?",
-            ["📧 Email", "📱 Phone Number"],
-            label_visibility="collapsed",
-            key="verify_method_radio"
-        )
-        
-        if verification_method == "📧 Email":
-            email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input_signup")
-        else:
-            email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input_signup")
-        
-        with st.form("signup_form"):
-            st.markdown("**Step 3: Password**")
-            password = st.text_input("Password", type="password", placeholder="Min. 8 chars", key="pwd_signup")
-            password_confirm = st.text_input("Confirm Password", type="password", key="pwd_confirm_signup")
-            
-            st.markdown('<div class="gdpr-box">', unsafe_allow_html=True)
-            st.markdown("""
-            ✅ **GDPR Compliance**
-            - We encrypt and protect your data
-            - You can delete your account anytime
-            - No data sharing without consent
-            """)
-            gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy", key="gdpr_signup")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
-        
-        if submitted:
-            full_name_val = st.session_state.get("fullname_signup", "")
-            email_or_phone_val = st.session_state.get("email_input_signup" if verification_method == "📧 Email" else "phone_input_signup", "")
-            password_val = st.session_state.get("pwd_signup", "")
-            password_confirm_val = st.session_state.get("pwd_confirm_signup", "")
-            gdpr_consent_val = st.session_state.get("gdpr_signup", False)
-            
-            if not all([full_name_val, email_or_phone_val, password_val, password_confirm_val]):
-                st.error("Please fill all fields.")
-            elif len(password_val) < 8:
-                st.error("Password must be at least 8 characters.")
-            elif password_val != password_confirm_val:
-                st.error("Passwords don't match.")
-            elif not gdpr_consent_val:
-                st.error("Please accept Terms & Privacy Policy.")
-            else:
-                is_email = verification_method == "📧 Email"
-                is_phone = verification_method == "📱 Phone Number"
-                
-                if is_email and not is_valid_email(email_or_phone_val):
-                    st.error("Invalid email format.")
-                elif is_phone and not is_valid_phone(email_or_phone_val):
-                    st.error("Invalid phone format (e.g., +33 6 XX XX XX XX).")
-                elif user_exists(email_or_phone_val):
-                    st.error("This email/phone is already registered.")
-                else:
-                    otp = str(random.randint(100000, 999999))
-                    
-                    sent = False
-                    if is_email:
-                        sent = send_otp_email(email_or_phone_val, otp)
-                    elif is_phone:
-                        sent = send_otp_sms(email_or_phone_val, otp)
-                    
-                    if sent:
-                        st.session_state.auth_otp = otp
-                        st.session_state.auth_target = email_or_phone_val.strip()
-                        st.session_state.auth_method = "email" if is_email else "phone"
-                        st.session_state.auth_step = "otp_verify"
-                        st.session_state.signup_data = {
-                            "full_name": full_name_val,
-                            "password": password_val,
-                            "gdpr_consent": gdpr_consent_val
-                        }
-                        st.session_state.show_signup = False
-                        st.rerun()
-        
-        if st.button("Already have an account? Sign in instead", use_container_width=True, key="switch_signin"):
-            st.session_state.show_signup = False
-            st.session_state.show_login = True
-            st.rerun()
-
-# OTP verification
-if st.session_state.auth_step == "otp_verify":
-    with st.expander("🔐 Verify Code", expanded=True):
-        method_display = "email" if st.session_state.auth_method == "email" else "phone"
-        target_display = st.session_state.auth_target
-        if "@" in target_display:
-            target_display = target_display[:3] + "***@" + target_display.split("@")[1]
-        
-        st.markdown(f"**Enter the verification code sent to your {method_display}:**")
-        st.caption(f"Sent to: {target_display}")
-        
-        with st.form("otp_form"):
-            otp_input = st.text_input("Verification Code", placeholder="000000", max_chars=6)
-            submitted = st.form_submit_button("Verify & Create Account", use_container_width=True)
-            
-            if submitted:
-                if otp_input.strip() == st.session_state.auth_otp:
-                    data = st.session_state.signup_data
-                    if create_user(
-                        st.session_state.auth_target,
-                        data.get("password", ""),
-                        data.get("full_name", "User"),
-                        data.get("gdpr_consent", False)
-                    ):
-                        st.session_state.authenticated = True
-                        st.session_state.username = st.session_state.auth_target
-                        st.session_state.auth_step = "login"
-                        st.session_state.show_signup = False
-                        st.success("✅ Account created! You're now logged in.")
-                        st.rerun()
-                    else:
-                        st.error("Failed to create account. Try again.")
-                else:
-                    st.session_state.otp_attempts += 1
-                    if st.session_state.otp_attempts >= 3:
-                        st.error("❌ Too many attempts. Please try again.")
-                        st.session_state.auth_step = "login"
-                        st.session_state.otp_attempts = 0
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Incorrect code. ({st.session_state.otp_attempts}/3 attempts)")
-
-# =========================================================
-# DASHBOARD (always visible)
+# DASHBOARD
 # =========================================================
 
 if df.empty:
     st.warning("⏳ No market data yet. The Midnight Robot will collect data starting tonight.")
-    st.info("In the meantime, you can sign up or explore the dashboard interface.")
+    st.info("In the meantime, you can explore the dashboard by selecting a stock from the sidebar.")
     st.stop()
 
 # =========================================================
-# IMPROVED TICKER SELECTOR - MAIN CONTENT AREA
+# SIDEBAR - STOCK SELECTOR (MAIN FOCUS)
 # =========================================================
-st.markdown('<div class="sec-h">📊 Select a Stock to View</div>', unsafe_allow_html=True)
+st.sidebar.markdown("### 📊 Select a Stock")
+st.sidebar.markdown("**Pick a stock to view details below**")
 
 tickers = sorted(df['ticker'].unique())
 
-# Create a grid of ticker cards
-cols = st.columns(len(tickers))
-for idx, ticker in enumerate(tickers):
-    with cols[idx]:
-        # Get latest data for this ticker
-        ticker_data = df[df['ticker'] == ticker].sort_values('date')
-        if len(ticker_data) >= 1:
-            last = ticker_data.iloc[-1]
-            prev = ticker_data.iloc[-2] if len(ticker_data) >= 2 else last
-            delta = last['close_price'] - prev['close_price']
-            pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
-            change_class = "ticker-change-up" if delta >= 0 else "ticker-change-down"
-            arrow = "▲" if delta >= 0 else "▼"
-            
-            # Make ticket card clickable
-            if st.button(
-                f"",
-                key=f"ticker_btn_{ticker}",
-                use_container_width=True,
-                help=f"Click to view {ticker} details"
-            ):
-                st.session_state.selected_ticker_global = ticker
-            
-            # Display ticker card info
-            st.markdown(f"""
-            <div class="ticker-card {'active' if st.session_state.selected_ticker_global == ticker else ''}">
-                <div class="ticker-symbol">{ticker}</div>
-                <div class="ticker-price">${last['close_price']:,.2f}</div>
-                <div class="ticker-change-{('up' if delta >= 0 else 'down')}">
-                    {arrow} {delta:+.2f} ({pct:+.2f}%)
-                </div>
+for ticker in tickers:
+    ticker_data = df[df['ticker'] == ticker].sort_values('date')
+    if len(ticker_data) >= 1:
+        last = ticker_data.iloc[-1]
+        prev = ticker_data.iloc[-2] if len(ticker_data) >= 2 else last
+        delta = last['close_price'] - prev['close_price']
+        pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
+        arrow = "▲" if delta >= 0 else "▼"
+        
+        is_active = st.session_state.selected_ticker_global == ticker
+        
+        if st.sidebar.button(
+            f"",
+            key=f"ticker_btn_{ticker}",
+            use_container_width=True,
+            help=f"Click to view {ticker}"
+        ):
+            st.session_state.selected_ticker_global = ticker
+            st.rerun()
+        
+        st.sidebar.markdown(f"""
+        <div class="ticker-card {'active' if is_active else ''}">
+            <div class="ticker-symbol">{ticker}</div>
+            <div class="ticker-price">${last['close_price']:,.2f}</div>
+            <div class="ticker-change-{'up' if delta >= 0 else 'down'}">
+                {arrow} {delta:+.2f} ({pct:+.2f}%)
             </div>
-            """, unsafe_allow_html=True)
-
-# Set default ticker if none selected
-if st.session_state.selected_ticker_global is None:
-    st.session_state.selected_ticker_global = tickers[0]
-
-selected_ticker = st.session_state.selected_ticker_global
-
-st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
-
-# =========================================================
-# SIDEBAR - SETTINGS
-# =========================================================
-st.sidebar.markdown("### 📊 Currently Viewing")
-st.sidebar.markdown(f"### **{selected_ticker}**")
+        </div>
+        """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 if st.session_state.authenticated:
@@ -613,12 +556,17 @@ if st.session_state.authenticated:
     notify_pref = st.sidebar.radio("Notifications", ["Email", "SMS", "None"], label_visibility="collapsed")
 else:
     st.sidebar.markdown("### 💡 Tip")
-    st.sidebar.info("Sign in to save your preferences and get personalized alerts.")
+    st.sidebar.info("Sign in above to save your preferences and get personalized alerts.")
 
+# Set default ticker if none selected
+if st.session_state.selected_ticker_global is None:
+    st.session_state.selected_ticker_global = tickers[0]
+
+selected_ticker = st.session_state.selected_ticker_global
 data = df[df['ticker'] == selected_ticker].copy().sort_values('date')
 
 # =========================================================
-# TICKER HEADER
+# MAIN CONTENT AREA - TICKER DETAILS
 # =========================================================
 last = data.iloc[-1]
 prev = data.iloc[-2] if len(data) >= 2 else last
