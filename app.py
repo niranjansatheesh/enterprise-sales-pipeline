@@ -81,20 +81,6 @@ st.markdown(f"""
 .masthead-tagline {{ font-size:0.7rem; color:{T['subtext']}; margin-top:0.05rem; }}
 .mast-divider {{ border-bottom:1px solid {T['border']}; margin:0.4rem 0 1.2rem 0; }}
 
-.ticker-card {{ 
-    border: 2px solid {T['border']}; border-radius:10px; padding:0.8rem;
-    background:{T['panel']}; cursor:pointer; transition:all 0.2s;
-    margin-bottom:0.5rem; text-align:center;
-}}
-.ticker-card:hover {{ border-color:{T['accent']}; transform:scale(1.02); }}
-.ticker-card.active {{ 
-    border-color:{T['accent']}; background:rgba(59, 130, 246, 0.1);
-}}
-.ticker-symbol {{ font-size:1.2rem; font-weight:800; color:{T['accent']}; }}
-.ticker-price {{ font-size:1rem; font-weight:700; color:{T['text']}; margin:0.3rem 0; }}
-.ticker-change-up {{ color:{T['up']}; font-weight:700; font-size:0.9rem; }}
-.ticker-change-down {{ color:{T['down']}; font-weight:700; font-size:0.9rem; }}
-
 .gdpr-box {{ font-size:0.7rem; color:{T['subtext']}; background:rgba(0,0,0,0.1);
     padding:0.8rem; border-radius:8px; margin:0.8rem 0; line-height:1.5; }}
 
@@ -301,7 +287,7 @@ def request_data_deletion(email_or_phone):
 df = load_market_data()
 
 # =========================================================
-# MASTHEAD (CLEAN - only brand, theme, auth)
+# MASTHEAD
 # =========================================================
 brand_col, theme_col, auth_col = st.columns([5, 1, 2])
 
@@ -331,7 +317,6 @@ with theme_col:
 
 with auth_col:
     if st.session_state.authenticated and st.session_state.username:
-        # User is logged in
         username_display = st.session_state.username[:12] + "..." if len(st.session_state.username) > 12 else st.session_state.username
         with st.popover(f"👤 {username_display}", use_container_width=True):
             st.markdown(f"**{st.session_state.username}**")
@@ -365,7 +350,6 @@ with auth_col:
                 st.session_state.username = None
                 st.rerun()
     else:
-        # User is NOT logged in - show sign in/sign up popover button
         col1, col2 = st.columns(2, gap="small")
         with col1:
             with st.popover("👤 Sign In", use_container_width=True):
@@ -473,7 +457,7 @@ with auth_col:
                 with st.popover("📝 Sign Up", use_container_width=True):
                     st.markdown("Click 'Sign In' then 'Don't have account?' to register")
 
-# OTP verification (shown at top if needed)
+# OTP verification
 if st.session_state.auth_step == "otp_verify":
     st.info("📧 Check your email/SMS for the verification code!")
     with st.form("otp_form", border=False):
@@ -518,12 +502,14 @@ if df.empty:
     st.stop()
 
 # =========================================================
-# SIDEBAR - STOCK SELECTOR
+# SIDEBAR - STOCK SELECTOR (MOST IMPORTANT)
 # =========================================================
-st.sidebar.markdown("### 📊 Select a Stock")
+st.sidebar.markdown("## 📊 STOCKS")
+st.sidebar.markdown("Select a stock to view:")
 
 tickers = sorted(df['ticker'].unique())
 
+# Create stock buttons in sidebar
 for ticker in tickers:
     ticker_data = df[df['ticker'] == ticker].sort_values('date')
     if len(ticker_data) >= 1:
@@ -532,27 +518,32 @@ for ticker in tickers:
         delta = last['close_price'] - prev['close_price']
         pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
         arrow = "▲" if delta >= 0 else "▼"
+        color = "🟢" if delta >= 0 else "🔴"
         
         is_active = st.session_state.selected_ticker_global == ticker
         
+        # Create button with styling
+        button_text = f"{color} {ticker}\n${last['close_price']:,.2f}\n{arrow} {pct:+.2f}%"
+        
         if st.sidebar.button(
-            f"{ticker} - ${last['close_price']:,.2f}",
-            key=f"ticker_btn_{ticker}",
+            button_text,
+            key=f"ticker_{ticker}",
             use_container_width=True,
-            help=f"Click to view {ticker}"
+            help=f"Click to view {ticker} details"
         ):
             st.session_state.selected_ticker_global = ticker
-            st.rerun()
 
 st.sidebar.markdown("---")
+
+# Settings section
 if st.session_state.authenticated:
-    st.sidebar.markdown("### ⚙️ Settings")
+    st.sidebar.markdown("## ⚙️ SETTINGS")
     notify_pref = st.sidebar.radio("Notifications", ["Email", "SMS", "None"], label_visibility="collapsed")
 else:
-    st.sidebar.markdown("### 💡 Tip")
+    st.sidebar.markdown("## 💡 LOGIN")
     st.sidebar.info("Sign in above to save your preferences and get personalized alerts.")
 
-# Set default ticker if none selected
+# Set default ticker
 if st.session_state.selected_ticker_global is None:
     st.session_state.selected_ticker_global = tickers[0]
 
@@ -560,7 +551,7 @@ selected_ticker = st.session_state.selected_ticker_global
 data = df[df['ticker'] == selected_ticker].copy().sort_values('date')
 
 # =========================================================
-# MAIN CONTENT - TICKER DETAILS
+# MAIN CONTENT
 # =========================================================
 last = data.iloc[-1]
 prev = data.iloc[-2] if len(data) >= 2 else last
