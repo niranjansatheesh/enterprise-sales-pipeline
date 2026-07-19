@@ -44,6 +44,8 @@ if "show_login" not in st.session_state:
     st.session_state.show_login = False
 if "show_signup" not in st.session_state:
     st.session_state.show_signup = False
+if "selected_ticker_global" not in st.session_state:
+    st.session_state.selected_ticker_global = None
 
 # =========================================================
 # THEME DEFINITIONS
@@ -80,6 +82,20 @@ st.markdown(f"""
 .masthead-title .accent {{ color:{T['accent']}; }}
 .masthead-tagline {{ font-size:0.7rem; color:{T['subtext']}; margin-top:0.05rem; }}
 .mast-divider {{ border-bottom:1px solid {T['border']}; margin:0.4rem 0 1.2rem 0; }}
+
+.ticker-card {{ 
+    border: 2px solid {T['border']}; border-radius:10px; padding:1rem;
+    background:{T['panel']}; cursor:pointer; transition:all 0.2s;
+    margin-bottom:0.5rem;
+}}
+.ticker-card:hover {{ border-color:{T['accent']}; transform:scale(1.02); }}
+.ticker-card.active {{ 
+    border-color:{T['accent']}; background:rgba({T['accent'].lstrip('#')}, 0.1);
+}}
+.ticker-symbol {{ font-size:1.3rem; font-weight:800; color:{T['accent']}; }}
+.ticker-price {{ font-size:1.1rem; font-weight:700; color:{T['text']}; }}
+.ticker-change-up {{ color:{T['up']}; font-weight:700; }}
+.ticker-change-down {{ color:{T['down']}; font-weight:700; }}
 
 .auth-box {{ max-width:420px; padding:1.5rem;
     border:1px solid {T['border']}; border-radius:12px; background:{T['panel']}; }}
@@ -411,7 +427,6 @@ if st.session_state.show_signup and not st.session_state.authenticated:
             key="verify_method_radio"
         )
         
-        # Display appropriate input field OUTSIDE the form - updates in real-time
         if verification_method == "📧 Email":
             email_or_phone = st.text_input("Email Address", placeholder="you@example.com", key="email_input_signup")
         else:
@@ -435,7 +450,6 @@ if st.session_state.show_signup and not st.session_state.authenticated:
             submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
         
         if submitted:
-            # Grab the values from session state
             full_name_val = st.session_state.get("fullname_signup", "")
             email_or_phone_val = st.session_state.get("email_input_signup" if verification_method == "📧 Email" else "phone_input_signup", "")
             password_val = st.session_state.get("pwd_signup", "")
@@ -539,11 +553,59 @@ if df.empty:
     st.stop()
 
 # =========================================================
-# SIDEBAR
+# IMPROVED TICKER SELECTOR - MAIN CONTENT AREA
 # =========================================================
-st.sidebar.markdown("### 📊 Assets")
+st.markdown('<div class="sec-h">📊 Select a Stock to View</div>', unsafe_allow_html=True)
+
 tickers = sorted(df['ticker'].unique())
-selected_ticker = st.sidebar.radio("Select Ticker", tickers, label_visibility="collapsed")
+
+# Create a grid of ticker cards
+cols = st.columns(len(tickers))
+for idx, ticker in enumerate(tickers):
+    with cols[idx]:
+        # Get latest data for this ticker
+        ticker_data = df[df['ticker'] == ticker].sort_values('date')
+        if len(ticker_data) >= 1:
+            last = ticker_data.iloc[-1]
+            prev = ticker_data.iloc[-2] if len(ticker_data) >= 2 else last
+            delta = last['close_price'] - prev['close_price']
+            pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
+            change_class = "ticker-change-up" if delta >= 0 else "ticker-change-down"
+            arrow = "▲" if delta >= 0 else "▼"
+            
+            # Make ticket card clickable
+            if st.button(
+                f"",
+                key=f"ticker_btn_{ticker}",
+                use_container_width=True,
+                help=f"Click to view {ticker} details"
+            ):
+                st.session_state.selected_ticker_global = ticker
+            
+            # Display ticker card info
+            st.markdown(f"""
+            <div class="ticker-card {'active' if st.session_state.selected_ticker_global == ticker else ''}">
+                <div class="ticker-symbol">{ticker}</div>
+                <div class="ticker-price">${last['close_price']:,.2f}</div>
+                <div class="ticker-change-{('up' if delta >= 0 else 'down')}">
+                    {arrow} {delta:+.2f} ({pct:+.2f}%)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# Set default ticker if none selected
+if st.session_state.selected_ticker_global is None:
+    st.session_state.selected_ticker_global = tickers[0]
+
+selected_ticker = st.session_state.selected_ticker_global
+
+st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
+
+# =========================================================
+# SIDEBAR - SETTINGS
+# =========================================================
+st.sidebar.markdown("### 📊 Currently Viewing")
+st.sidebar.markdown(f"### **{selected_ticker}**")
 
 st.sidebar.markdown("---")
 if st.session_state.authenticated:
@@ -566,7 +628,7 @@ cls = "tk-change-up" if delta >= 0 else "tk-change-down"
 arrow = "▲" if delta >= 0 else "▼"
 
 st.markdown(f"""
-<div style="font-size:1.05rem; font-weight:600;">{selected_ticker}</div>
+<div style="font-size:1.05rem; font-weight:600;">{selected_ticker} - Detailed View</div>
 <div class="tk-price-row">
     <span class="tk-price">{last['close_price']:,.2f}</span>
     <span class="{cls}">{arrow} {delta:+,.2f} ({pct:+.2f}%)</span>
