@@ -189,7 +189,6 @@ def create_user(email_or_phone, password, full_name, gdpr_consent):
             conn.commit()
             return True
     except Exception as e:
-        st.error(f"Error creating user: {e}")
         return False
 
 def verify_credentials(email_or_phone, password):
@@ -253,10 +252,6 @@ def send_otp_email(email, otp):
                 <p>Your MARKETPULSE verification code is:</p>
                 <h1 style='color:#0F69FF; letter-spacing:2px;'>{otp}</h1>
                 <p style='color:#666;'>This code expires in 10 minutes.</p>
-                <hr style='border:none; border-top:1px solid #eee; margin:1.5rem 0;'/>
-                <p style='font-size:0.85rem; color:#999;'>
-                    If you didn't request this code, please ignore this email.
-                </p>
             </div>
             """
         )
@@ -282,7 +277,7 @@ def request_data_deletion(email_or_phone):
         return False
 
 # =========================================================
-# LOAD DASHBOARD DATA
+# LOAD DATA
 # =========================================================
 df = load_market_data()
 
@@ -324,19 +319,7 @@ with auth_col:
             
             st.markdown("---")
             if st.button("📋 Privacy Policy", use_container_width=True, key="privacy_btn"):
-                st.info("""
-                ### MARKETPULSE Privacy Policy
-                
-                **Data We Collect:** Email/phone, name, trading preferences
-                **Data Protection:** AES-256 encryption, GDPR-compliant infrastructure
-                **Your Rights:**
-                - Access your data anytime
-                - Request deletion (30-day grace period)
-                - Opt-out of analytics
-                - Port your data
-                
-                **Contact:** privacy@marketpulse.com
-                """)
+                st.info("### MARKETPULSE Privacy Policy\n\n**Data We Collect:** Email/phone, name, trading preferences\n**Data Protection:** AES-256 encryption, GDPR-compliant infrastructure\n**Your Rights:** Access anytime, Request deletion (30 days), Opt-out, Port data\n\n**Contact:** privacy@marketpulse.com")
             
             if st.button("🗑️ Request Data Deletion", use_container_width=True, key="delete_btn"):
                 if request_data_deletion(st.session_state.username):
@@ -498,61 +481,67 @@ st.markdown('<div class="mast-divider"></div>', unsafe_allow_html=True)
 
 if df.empty:
     st.warning("⏳ No market data yet. The Midnight Robot will collect data starting tonight.")
-    st.info("In the meantime, you can explore the dashboard by selecting a stock from the sidebar.")
     st.stop()
 
 # =========================================================
-# SIDEBAR - STOCK SELECTOR (MOST IMPORTANT)
+# SIDEBAR - STOCK SELECTOR WITH SELECTBOX
 # =========================================================
 st.sidebar.markdown("## 📊 STOCKS")
-st.sidebar.markdown("Select a stock to view:")
 
 tickers = sorted(df['ticker'].unique())
 
-# Create stock buttons in sidebar
-for ticker in tickers:
-    ticker_data = df[df['ticker'] == ticker].sort_values('date')
-    if len(ticker_data) >= 1:
-        last = ticker_data.iloc[-1]
-        prev = ticker_data.iloc[-2] if len(ticker_data) >= 2 else last
-        delta = last['close_price'] - prev['close_price']
-        pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
-        arrow = "▲" if delta >= 0 else "▼"
-        color = "🟢" if delta >= 0 else "🔴"
-        
-        is_active = st.session_state.selected_ticker_global == ticker
-        
-        # Create button with styling
-        button_text = f"{color} {ticker}\n${last['close_price']:,.2f}\n{arrow} {pct:+.2f}%"
-        
-        if st.sidebar.button(
-            button_text,
-            key=f"ticker_{ticker}",
-            use_container_width=True,
-            help=f"Click to view {ticker} details"
-        ):
-            st.session_state.selected_ticker_global = ticker
+if tickers:
+    stock_options = []
+    stock_dict = {}
+    
+    for ticker in tickers:
+        ticker_data = df[df['ticker'] == ticker].sort_values('date')
+        if len(ticker_data) >= 1:
+            last = ticker_data.iloc[-1]
+            prev = ticker_data.iloc[-2] if len(ticker_data) >= 2 else last
+            delta = last['close_price'] - prev['close_price']
+            pct = (delta / prev['close_price'] * 100) if prev['close_price'] else 0
+            arrow = "▲" if delta >= 0 else "▼"
+            color = "🟢" if delta >= 0 else "🔴"
+            
+            display_name = f"{color} {ticker} - ${last['close_price']:,.2f} {arrow} {pct:+.2f}%"
+            stock_options.append(display_name)
+            stock_dict[display_name] = ticker
+    
+    # Default index
+    default_idx = 0
+    if st.session_state.selected_ticker_global and st.session_state.selected_ticker_global in [stock_dict.get(opt) for opt in stock_options]:
+        for i, opt in enumerate(stock_options):
+            if stock_dict[opt] == st.session_state.selected_ticker_global:
+                default_idx = i
+                break
+    
+    selected_stock = st.sidebar.selectbox(
+        "Select a stock:",
+        stock_options,
+        index=default_idx,
+    )
+    
+    st.session_state.selected_ticker_global = stock_dict[selected_stock]
 
 st.sidebar.markdown("---")
 
-# Settings section
 if st.session_state.authenticated:
     st.sidebar.markdown("## ⚙️ SETTINGS")
     notify_pref = st.sidebar.radio("Notifications", ["Email", "SMS", "None"], label_visibility="collapsed")
 else:
     st.sidebar.markdown("## 💡 LOGIN")
-    st.sidebar.info("Sign in above to save your preferences and get personalized alerts.")
+    st.sidebar.info("Sign in above to save your preferences.")
 
-# Set default ticker
-if st.session_state.selected_ticker_global is None:
+# =========================================================
+# MAIN DASHBOARD CONTENT
+# =========================================================
+if st.session_state.selected_ticker_global is None and tickers:
     st.session_state.selected_ticker_global = tickers[0]
 
-selected_ticker = st.session_state.selected_ticker_global
+selected_ticker = st.session_state.selected_ticker_global if st.session_state.selected_ticker_global else tickers[0]
 data = df[df['ticker'] == selected_ticker].copy().sort_values('date')
 
-# =========================================================
-# MAIN CONTENT
-# =========================================================
 last = data.iloc[-1]
 prev = data.iloc[-2] if len(data) >= 2 else last
 delta = last['close_price'] - prev['close_price']
@@ -569,9 +558,7 @@ st.markdown(f"""
 <div class="tk-asof">At close on {last['date'].strftime('%b %d, %Y')}</div>
 """, unsafe_allow_html=True)
 
-# =========================================================
-# PERIOD SELECTOR
-# =========================================================
+# Period selector
 periods = {"1W": 7, "1M": 30, "3M": 90, "6M": 180, "1Y": 365, "Max": None}
 choice = st.radio("Period", list(periods.keys()), index=len(periods) - 1, horizontal=True, label_visibility="collapsed")
 
@@ -583,9 +570,7 @@ else:
 if len(view) < 2:
     view = data
 
-# =========================================================
-# STAT CARDS
-# =========================================================
+# Stat cards
 period_delta = view['close_price'].iloc[-1] - view['close_price'].iloc[0]
 period_pct = period_delta / view['close_price'].iloc[0] * 100 if view['close_price'].iloc[0] else 0
 st.markdown(f"""
@@ -597,9 +582,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# =========================================================
-# CHART
-# =========================================================
+# Chart
 going_up = view['close_price'].iloc[-1] >= view['close_price'].iloc[0]
 line_color = T['up'] if going_up else T['down']
 fill_color = T['upfill'] if going_up else T['downfill']
@@ -629,9 +612,7 @@ fig.update_layout(template=T['plotly'], height=460, margin=dict(l=10, r=10, t=10
 
 st.plotly_chart(fig, width='stretch')
 
-# =========================================================
-# HISTORICAL DATA
-# =========================================================
+# Historical data
 st.markdown('<div class="sec-h">Historical Data</div>', unsafe_allow_html=True)
 
 hist = view.sort_values('date', ascending=False).copy()
