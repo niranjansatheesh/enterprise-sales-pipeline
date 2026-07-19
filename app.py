@@ -42,6 +42,8 @@ if "signup_data" not in st.session_state:
     st.session_state.signup_data = {}
 if "selected_ticker_global" not in st.session_state:
     st.session_state.selected_ticker_global = None
+if "show_signup_form" not in st.session_state:
+    st.session_state.show_signup_form = False
 
 # =========================================================
 # THEME DEFINITIONS
@@ -93,9 +95,6 @@ st.markdown(f"""
 .ticker-change-up {{ color:{T['up']}; font-weight:700; font-size:0.9rem; }}
 .ticker-change-down {{ color:{T['down']}; font-weight:700; font-size:0.9rem; }}
 
-.auth-modal {{ max-width:400px; padding:1.5rem;
-    border:1px solid {T['border']}; border-radius:12px; background:{T['panel']}; }}
-.auth-title {{ font-size:1.2rem; font-weight:800; color:{T['text']}; margin-bottom:1rem; }}
 .gdpr-box {{ font-size:0.7rem; color:{T['subtext']}; background:rgba(0,0,0,0.1);
     padding:0.8rem; border-radius:8px; margin:0.8rem 0; line-height:1.5; }}
 
@@ -302,7 +301,7 @@ def request_data_deletion(email_or_phone):
 df = load_market_data()
 
 # =========================================================
-# MASTHEAD (SIMPLE - only brand, theme, auth buttons)
+# MASTHEAD (CLEAN - only brand, theme, auth)
 # =========================================================
 brand_col, theme_col, auth_col = st.columns([5, 1, 2])
 
@@ -332,6 +331,7 @@ with theme_col:
 
 with auth_col:
     if st.session_state.authenticated and st.session_state.username:
+        # User is logged in
         username_display = st.session_state.username[:12] + "..." if len(st.session_state.username) > 12 else st.session_state.username
         with st.popover(f"👤 {username_display}", use_container_width=True):
             st.markdown(f"**{st.session_state.username}**")
@@ -365,36 +365,42 @@ with auth_col:
                 st.session_state.username = None
                 st.rerun()
     else:
-        col1, col2 = st.columns(2)
+        # User is NOT logged in - show sign in/sign up popover button
+        col1, col2 = st.columns(2, gap="small")
         with col1:
-            if st.button("Sign In", use_container_width=True, key="signin_btn_header"):
-                with st.popover("👤 Sign In", use_container_width=True):
-                    with st.form("login_form"):
-                        email_or_phone = st.text_input("Email or Phone", placeholder="you@example.com or +33 6 XX XX XX XX")
-                        password = st.text_input("Password", type="password")
-                        submitted = st.form_submit_button("Sign In", use_container_width=True)
-                        
-                        if submitted:
-                            if not email_or_phone.strip() or not password.strip():
-                                st.error("Please fill all fields.")
+            with st.popover("👤 Sign In", use_container_width=True):
+                with st.form("login_form", border=False):
+                    email_or_phone = st.text_input("Email or Phone", placeholder="you@example.com or +33 6 XX XX XX XX")
+                    password = st.text_input("Password", type="password")
+                    submitted = st.form_submit_button("Sign In", use_container_width=True)
+                    
+                    if submitted:
+                        if not email_or_phone.strip() or not password.strip():
+                            st.error("Please fill all fields.")
+                        else:
+                            full_name = verify_credentials(email_or_phone, password)
+                            if full_name:
+                                st.session_state.authenticated = True
+                                st.session_state.username = email_or_phone.strip()
+                                st.success("Logged in successfully!")
+                                st.rerun()
                             else:
-                                full_name = verify_credentials(email_or_phone, password)
-                                if full_name:
-                                    st.session_state.authenticated = True
-                                    st.session_state.username = email_or_phone.strip()
-                                    st.success("Logged in successfully!")
-                                    st.rerun()
-                                else:
-                                    st.error("Invalid email/phone or password.")
+                                st.error("Invalid email/phone or password.")
+                
+                st.markdown("---")
+                if st.button("Don't have account? Sign up", use_container_width=True, key="switch_to_signup"):
+                    st.session_state.show_signup_form = True
+                    st.rerun()
+        
         with col2:
-            if st.button("Sign Up", use_container_width=True, key="signup_btn_header"):
+            if st.session_state.show_signup_form:
                 with st.popover("📝 Sign Up", use_container_width=True):
                     st.markdown("**Step 1: Your Details**")
                     full_name = st.text_input("Full Name", placeholder="John Doe", key="fullname_signup")
                     
-                    st.markdown("**Step 2: Choose Verification Method**")
+                    st.markdown("**Step 2: Verification Method**")
                     verification_method = st.radio(
-                        "How would you like to verify?",
+                        "Choose method:",
                         ["📧 Email", "📱 Phone Number"],
                         label_visibility="collapsed",
                         key="verify_method_radio"
@@ -405,19 +411,14 @@ with auth_col:
                     else:
                         email_or_phone = st.text_input("Phone Number", placeholder="+33 6 XX XX XX XX", key="phone_input_signup")
                     
-                    with st.form("signup_form"):
+                    with st.form("signup_form", border=False):
                         st.markdown("**Step 3: Password**")
                         password = st.text_input("Password", type="password", placeholder="Min. 8 chars", key="pwd_signup")
                         password_confirm = st.text_input("Confirm Password", type="password", key="pwd_confirm_signup")
                         
                         st.markdown('<div class="gdpr-box">', unsafe_allow_html=True)
-                        st.markdown("""
-                        ✅ **GDPR Compliance**
-                        - We encrypt and protect your data
-                        - You can delete your account anytime
-                        - No data sharing without consent
-                        """)
-                        gdpr_consent = st.checkbox("I agree to the Terms & Privacy Policy", key="gdpr_signup")
+                        st.markdown("✅ **GDPR Compliance** - We encrypt your data, you can delete anytime, no data sharing")
+                        gdpr_consent = st.checkbox("I agree to Terms & Privacy Policy", key="gdpr_signup")
                         st.markdown('</div>', unsafe_allow_html=True)
                         
                         submitted = st.form_submit_button("Create Account & Send OTP", use_container_width=True)
@@ -466,12 +467,16 @@ with auth_col:
                                         "password": password_val,
                                         "gdpr_consent": gdpr_consent_val
                                     }
+                                    st.session_state.show_signup_form = False
                                     st.rerun()
+            else:
+                with st.popover("📝 Sign Up", use_container_width=True):
+                    st.markdown("Click 'Sign In' then 'Don't have account?' to register")
 
-# OTP verification
+# OTP verification (shown at top if needed)
 if st.session_state.auth_step == "otp_verify":
     st.info("📧 Check your email/SMS for the verification code!")
-    with st.form("otp_form"):
+    with st.form("otp_form", border=False):
         otp_input = st.text_input("Verification Code", placeholder="000000", max_chars=6)
         submitted = st.form_submit_button("Verify & Create Account", use_container_width=True)
         
@@ -513,10 +518,9 @@ if df.empty:
     st.stop()
 
 # =========================================================
-# SIDEBAR - STOCK SELECTOR (MAIN FOCUS)
+# SIDEBAR - STOCK SELECTOR
 # =========================================================
 st.sidebar.markdown("### 📊 Select a Stock")
-st.sidebar.markdown("**Pick a stock to view details below**")
 
 tickers = sorted(df['ticker'].unique())
 
@@ -532,23 +536,13 @@ for ticker in tickers:
         is_active = st.session_state.selected_ticker_global == ticker
         
         if st.sidebar.button(
-            f"",
+            f"{ticker} - ${last['close_price']:,.2f}",
             key=f"ticker_btn_{ticker}",
             use_container_width=True,
             help=f"Click to view {ticker}"
         ):
             st.session_state.selected_ticker_global = ticker
             st.rerun()
-        
-        st.sidebar.markdown(f"""
-        <div class="ticker-card {'active' if is_active else ''}">
-            <div class="ticker-symbol">{ticker}</div>
-            <div class="ticker-price">${last['close_price']:,.2f}</div>
-            <div class="ticker-change-{'up' if delta >= 0 else 'down'}">
-                {arrow} {delta:+.2f} ({pct:+.2f}%)
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 if st.session_state.authenticated:
@@ -566,7 +560,7 @@ selected_ticker = st.session_state.selected_ticker_global
 data = df[df['ticker'] == selected_ticker].copy().sort_values('date')
 
 # =========================================================
-# MAIN CONTENT AREA - TICKER DETAILS
+# MAIN CONTENT - TICKER DETAILS
 # =========================================================
 last = data.iloc[-1]
 prev = data.iloc[-2] if len(data) >= 2 else last
